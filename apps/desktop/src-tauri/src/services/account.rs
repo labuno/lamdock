@@ -3,7 +3,6 @@ use super::types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
@@ -1546,28 +1545,14 @@ pub fn add_session_profile_account(
     }
 
     let auth_content = build_session_profile_auth_json(&req.session_json)?;
-    fs::create_dir_all(&codex_dir)?;
-    set_dir_private(&codex_dir)?;
-    for sub in [
-        "sessions", "cache", "log", "tmp", "rules", "skills", "memories",
-    ] {
-        fs::create_dir_all(codex_dir.join(sub))?;
-    }
-    write_file_private(&codex_dir.join("auth.json"), &auth_content)?;
-    write_file_private(
-        &codex_dir.join("config.toml"),
+    write_profile_space(
+        &account_id,
+        &codex_dir,
+        &wrapper,
+        &wrapper_contents,
+        auth_content.as_bytes(),
         "# Session-imported Codex profile\n# This file is managed by LAM\n",
     )?;
-    write_file_private(
-        &codex_dir.join(NEW_MARKER),
-        &managed_account_json(&account_id, None, None, None, &codex_dir, &wrapper),
-    )?;
-    fs::create_dir_all(
-        wrapper
-            .parent()
-            .ok_or_else(|| AppError::new("WRAPPER_PATH_INVALID", "missing wrapper parent"))?,
-    )?;
-    write_executable(&wrapper, &wrapper_contents)?;
 
     Ok(CreateResult {
         profile_id: account_id,
@@ -1580,6 +1565,37 @@ pub fn add_session_profile_account(
         ],
         warnings: wrapper_path_hint(home_root).into_iter().collect(),
     })
+}
+
+fn write_profile_space(
+    account_id: &str,
+    codex_dir: &Path,
+    wrapper: &Path,
+    wrapper_contents: &str,
+    auth_content: &[u8],
+    config: &str,
+) -> Result<()> {
+    fs::create_dir_all(codex_dir)?;
+    set_dir_private(codex_dir)?;
+    for sub in [
+        "sessions", "cache", "log", "tmp", "rules", "skills", "memories",
+    ] {
+        fs::create_dir_all(codex_dir.join(sub))?;
+    }
+    let auth_path = codex_dir.join("auth.json");
+    fs::write(&auth_path, auth_content)?;
+    set_file_private(&auth_path)?;
+    write_file_private(&codex_dir.join("config.toml"), config)?;
+    write_file_private(
+        &codex_dir.join(NEW_MARKER),
+        &managed_account_json(account_id, None, None, None, codex_dir, wrapper),
+    )?;
+    fs::create_dir_all(
+        wrapper
+            .parent()
+            .ok_or_else(|| AppError::new("WRAPPER_PATH_INVALID", "missing wrapper parent"))?,
+    )?;
+    write_executable(wrapper, wrapper_contents)
 }
 
 fn build_session_profile_auth_json(
@@ -1974,9 +1990,11 @@ fn infer_auth_type(auth_json: &serde_json::Map<String, serde_json::Value>) -> St
     "personal_token".to_string()
 }
 
-/// Switches to an account based on the configured auth mode
-/// - OAuth mode: switches the entire directory (symlink or copy)
-/// - PAT mode: copies only auth.json
+const APP_SLOT_AUTH_FILES: [&str; 2] = ["auth.json", "auth-f.json"];
+
+/// Points the default `~/.codex` credentials, used by the Codex App and plain
+/// `codex`, at the selected account's own files. The App and the account's
+/// profile then share one refresh token, which the server rotates on every use.
 pub fn switch_to_pat_account(home_root: &Path, account_id: &str) -> Result<()> {
     let account_id = validate_profile_id(account_id)?;
     if account_id == "main" {
@@ -1986,7 +2004,6 @@ pub fn switch_to_pat_account(home_root: &Path, account_id: &str) -> Result<()> {
         ));
     }
 
-    // 1. Verify account exists
     let codex_dir = codex_home_path(home_root, &account_id);
     if !codex_dir.exists() {
         return Err(AppError::new(
@@ -2002,96 +2019,219 @@ pub fn switch_to_pat_account(home_root: &Path, account_id: &str) -> Result<()> {
             format!("auth.json not found for account '{}'", account_id),
         ));
     }
+    if auth_is_api_key(&read_auth_object(&source_auth, "auth.json")?) {
+        return Err(AppError::new(
+            "APP_SLOT_API_KEY_UNSUPPORTED",
+            format!(
+                "Account '{account_id}' uses an API key; the Codex App can only relay ChatGPT accounts"
+            ),
+        ));
+    }
 
-    let target_codex = home_root.join(".codex");
-
-    std::fs::create_dir_all(&target_codex).map_err(|e| {
+    let slot = app_slot_dir(home_root);
+    fs::create_dir_all(&slot).map_err(|e| {
         AppError::new(
             "CREATE_DIR_FAILED",
             format!("Failed to create .codex dir: {}", e),
         )
     })?;
+    preserve_unlinked_app_credentials(home_root, &slot)?;
 
-    let source_content = fs::read(&source_auth)
-        .map_err(|e| AppError::new("READ_FAILED", format!("Failed to read auth.json: {e}")))?;
-    let parsed: serde_json::Value = serde_json::from_slice(&source_content)
-        .map_err(|e| AppError::new("INVALID_AUTH_JSON", format!("Invalid auth.json: {e}")))?;
-    if !parsed.is_object() {
-        return Err(AppError::new(
-            "INVALID_AUTH_JSON",
-            "auth.json must contain a JSON object",
-        ));
+    for name in APP_SLOT_AUTH_FILES {
+        let source = codex_dir.join(name);
+        let target = slot.join(name);
+        if source.exists() {
+            link_app_slot_file(&source, &target)?;
+        } else {
+            remove_app_slot_file(&target)?;
+        }
     }
 
-    let target_auth = target_codex.join("auth.json");
-    let temp_auth = target_codex.join(format!(".auth.json.lam-{}.tmp", std::process::id()));
-    let write_result = (|| -> Result<()> {
-        let mut temp_file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp_auth)?;
-        temp_file.write_all(&source_content)?;
-        temp_file.sync_all()?;
-        set_file_private(&temp_auth)?;
-        fs::rename(&temp_auth, &target_auth)?;
-        set_file_private(&target_auth)?;
-        Ok(())
-    })();
-    if write_result.is_err() {
-        let _ = fs::remove_file(&temp_auth);
-    }
-    write_result?;
-
-    let active_content = fs::read(&target_auth)
+    let active = fs::read(slot.join("auth.json"))
         .map_err(|e| AppError::new("VERIFY_FAILED", format!("Failed to verify auth.json: {e}")))?;
-    if active_content != source_content {
+    if active != fs::read(&source_auth)? {
         return Err(AppError::new(
             "VERIFY_FAILED",
             "Active auth.json does not match the selected profile",
         ));
     }
+    Ok(())
+}
 
-    let source_auth_f = codex_dir.join("auth-f.json");
-    let target_auth_f = target_codex.join("auth-f.json");
-    if source_auth_f.exists() {
-        let source_content_f = fs::read(&source_auth_f).map_err(|e| {
-            AppError::new("READ_FAILED", format!("Failed to read auth-f.json: {e}"))
-        })?;
-        let parsed_f: serde_json::Value = serde_json::from_slice(&source_content_f)
-            .map_err(|e| AppError::new("INVALID_AUTH_JSON", format!("Invalid auth-f.json: {e}")))?;
-        if !parsed_f.is_object() {
-            return Err(AppError::new(
-                "INVALID_AUTH_JSON",
-                "auth-f.json must contain a JSON object",
-            ));
-        }
+fn app_slot_dir(home_root: &Path) -> PathBuf {
+    home_root.join(".codex")
+}
 
-        let temp_auth_f = target_codex.join(format!(".auth-f.json.lam-{}.tmp", std::process::id()));
-        let write_result_f = (|| -> Result<()> {
-            let mut temp_file = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temp_auth_f)?;
-            temp_file.write_all(&source_content_f)?;
-            temp_file.sync_all()?;
-            set_file_private(&temp_auth_f)?;
-            fs::rename(&temp_auth_f, &target_auth_f)?;
-            set_file_private(&target_auth_f)?;
-            Ok(())
-        })();
-        if write_result_f.is_err() {
-            let _ = fs::remove_file(&temp_auth_f);
+fn auth_is_api_key(auth: &serde_json::Map<String, serde_json::Value>) -> bool {
+    auth.get("auth_mode").and_then(serde_json::Value::as_str) == Some("apikey")
+        || (auth_string(auth, "OPENAI_API_KEY").is_some() && auth.get("tokens").is_none())
+}
+
+/// A regular `~/.codex/auth.json` holds credentials no account owns a link to:
+/// a copy left by older LAM versions or a login made directly in the App.
+/// Keep them before the slot is relinked.
+fn preserve_unlinked_app_credentials(home_root: &Path, slot: &Path) -> Result<()> {
+    let slot_auth = slot.join("auth.json");
+    match fs::symlink_metadata(&slot_auth) {
+        Ok(meta) if meta.file_type().is_file() => {}
+        Ok(_) => return Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.into()),
+    }
+    let content = fs::read(&slot_auth)?;
+    let auth = serde_json::from_slice::<serde_json::Value>(&content)
+        .ok()
+        .and_then(|value| value.as_object().cloned());
+
+    let candidates = list_accounts(home_root)?
+        .into_iter()
+        .filter(|account| account.id != "main")
+        .map(|account| account.codex_home.join("auth.json"))
+        .filter(|path| path.is_file())
+        .collect::<Vec<_>>();
+    if candidates
+        .iter()
+        .any(|path| fs::read(path).is_ok_and(|existing| existing == content))
+    {
+        return Ok(());
+    }
+
+    if let Some(identity) = auth.as_ref().and_then(auth_identity) {
+        let owners = candidates
+            .iter()
+            .filter_map(|path| {
+                let owner_auth = read_auth_object(path, "auth.json").ok()?;
+                (auth_identity(&owner_auth).as_ref() == Some(&identity))
+                    .then_some((path, owner_auth))
+            })
+            .collect::<Vec<_>>();
+        if let [(owner_path, owner_auth)] = owners.as_slice() {
+            let slot_refresh = auth.as_ref().and_then(auth_last_refresh);
+            if slot_refresh > auth_last_refresh(owner_auth) {
+                fs::write(owner_path, &content)?;
+                set_file_private(owner_path)?;
+            }
+            return Ok(());
         }
-        write_result_f?;
-    } else if target_auth_f.exists() {
-        fs::remove_file(&target_auth_f).map_err(|e| {
+    }
+
+    import_app_credentials(home_root, slot, &content, auth.as_ref())
+}
+
+/// ChatGPT workspace plus user: team members share the workspace account id.
+fn auth_identity(
+    auth: &serde_json::Map<String, serde_json::Value>,
+) -> Option<(String, Option<String>)> {
+    let account_id = auth_string(auth, "account_id")?;
+    let user = auth_string(auth, "id_token")
+        .and_then(|token| decode_jwt_payload_value(&token))
+        .and_then(|payload| {
+            let claims = payload.get("https://api.openai.com/auth");
+            claims
+                .and_then(|c| c.get("chatgpt_user_id").or_else(|| c.get("user_id")))
+                .or_else(|| payload.get("sub"))
+                .or_else(|| payload.get("email"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        });
+    Some((account_id, user))
+}
+
+fn auth_last_refresh(
+    auth: &serde_json::Map<String, serde_json::Value>,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    let value = auth_string(auth, "last_refresh")?;
+    chrono::DateTime::parse_from_rfc3339(&value)
+        .ok()
+        .map(|time| time.with_timezone(&chrono::Utc))
+}
+
+fn import_app_credentials(
+    home_root: &Path,
+    slot: &Path,
+    content: &[u8],
+    auth: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> Result<()> {
+    let suffix = auth
+        .and_then(|auth| auth_string(auth, "account_id"))
+        .map(|id| {
+            let chars = id
+                .chars()
+                .filter(char::is_ascii_alphanumeric)
+                .map(|c| c.to_ascii_lowercase())
+                .collect::<Vec<_>>();
+            chars[chars.len().saturating_sub(6)..]
+                .iter()
+                .collect::<String>()
+        })
+        .filter(|suffix| !suffix.is_empty())
+        .unwrap_or_else(|| "import".to_string());
+    let base = format!("app-{suffix}");
+    let name = (1..)
+        .map(|n| {
+            if n == 1 {
+                base.clone()
+            } else {
+                format!("{base}-{n}")
+            }
+        })
+        .find(|name| {
+            !codex_home_path(home_root, name).exists() && !wrapper_path(home_root, name).exists()
+        })
+        .expect("unbounded name search");
+
+    let codex_dir = codex_home_path(home_root, &name);
+    let wrapper = wrapper_path(home_root, &name);
+    write_profile_space(
+        &name,
+        &codex_dir,
+        &wrapper,
+        &direct_wrapper_script(&name),
+        content,
+        "# Imported from the Codex App credentials\n# This file is managed by LAM\n",
+    )?;
+    let slot_auth_f = slot.join("auth-f.json");
+    if fs::symlink_metadata(&slot_auth_f).is_ok_and(|meta| meta.file_type().is_file()) {
+        fs::copy(&slot_auth_f, codex_dir.join("auth-f.json"))?;
+        set_file_private(&codex_dir.join("auth-f.json"))?;
+    }
+    Ok(())
+}
+
+fn link_app_slot_file(source: &Path, target: &Path) -> Result<()> {
+    let name = target
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let temp = target.with_file_name(format!(".{name}.lam-{}.link", std::process::id()));
+    let _ = fs::remove_file(&temp);
+    let result = (|| -> std::io::Result<()> {
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(source, &temp)?;
+        #[cfg(not(unix))]
+        fs::copy(source, &temp).map(|_| ())?;
+        fs::rename(&temp, target)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp);
+    }
+    result.map_err(|e| {
+        AppError::new(
+            "APP_SLOT_LINK_FAILED",
+            format!("Failed to link {}: {e}", target.display()),
+        )
+    })
+}
+
+fn remove_app_slot_file(target: &Path) -> Result<()> {
+    if fs::symlink_metadata(target).is_ok() {
+        fs::remove_file(target).map_err(|e| {
             AppError::new(
                 "REMOVE_FAILED",
-                format!("Failed to remove stale auth-f.json: {e}"),
+                format!("Failed to remove {}: {e}", target.display()),
             )
         })?;
     }
-
     Ok(())
 }
 
@@ -2558,7 +2698,7 @@ mod pat_tests {
     }
 
     #[test]
-    fn pat_switch_copies_and_removes_auth_f_json() {
+    fn pat_switch_links_and_removes_auth_f_json() {
         let temp = TempDir::new().unwrap();
         let home_root = temp.path();
         let account_home = home_root.join(".codex-c");
@@ -2573,9 +2713,12 @@ mod pat_tests {
         let target_codex = home_root.join(".codex");
         let target_auth_f = target_codex.join("auth-f.json");
 
-        // 1. Switch to account "c" (should copy auth-f.json)
+        // 1. Switch to account "c" (should link auth-f.json)
         switch_to_pat_account(home_root, "c").unwrap();
-        assert!(target_auth_f.exists());
+        assert_eq!(
+            fs::read_link(&target_auth_f).unwrap(),
+            account_home.join("auth-f.json")
+        );
         let content: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&target_auth_f).unwrap()).unwrap();
         assert_eq!(content["tokens"]["access_token"], "token-c");
@@ -2590,7 +2733,7 @@ mod pat_tests {
         .unwrap();
 
         switch_to_pat_account(home_root, "d").unwrap();
-        assert!(!target_auth_f.exists());
+        assert!(fs::symlink_metadata(&target_auth_f).is_err());
     }
 
     #[cfg(unix)]

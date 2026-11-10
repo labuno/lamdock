@@ -138,9 +138,12 @@ fn test_add_and_switch_pat_account() {
     std::fs::write(home.join(".codex/sessions/keep.jsonl"), "{}\n").unwrap();
     switch_to_pat_account(home, "test-pat-account").unwrap();
 
-    // Verify: auth.json copied to ~/.codex/
+    // Verify: ~/.codex/auth.json links to the account's own credentials
     let target_auth = home.join(".codex/auth.json");
-    assert!(target_auth.exists());
+    assert_eq!(
+        std::fs::read_link(&target_auth).unwrap(),
+        home.join(".codex-test-pat-account/auth.json")
+    );
     let target_content = std::fs::read_to_string(&target_auth).unwrap();
     let target_auth: serde_json::Value = serde_json::from_str(&target_content).unwrap();
     assert_eq!(target_auth, stored_auth);

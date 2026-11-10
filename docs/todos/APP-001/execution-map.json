@@ -19,7 +19,7 @@
       "maturity": "DECOMPOSED",
       "elaboration_blockers": [],
       "readiness": "READY",
-      "status": "待执行",
+      "status": "验证成功",
       "depends_on": [],
       "blockers": [],
       "consumes": [],
@@ -35,7 +35,26 @@
         "cargo test --offline --test integration_pat_accounts",
         "cargo test --offline --lib account"
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "command": "cargo test --offline --test app_slot_shared_auth",
+          "result": "PASS",
+          "scope": "local",
+          "verified_at": "2026-11-10T11:43:00+08:00"
+        },
+        {
+          "command": "cargo test --offline --test integration_pat_accounts",
+          "result": "PASS",
+          "scope": "local",
+          "verified_at": "2026-11-10T11:43:00+08:00"
+        },
+        {
+          "command": "cargo test --offline --lib account",
+          "result": "PASS",
+          "scope": "local",
+          "verified_at": "2026-11-10T11:43:00+08:00"
+        }
+      ]
     },
     {
       "id": "APP-001-02",
@@ -45,7 +64,7 @@
       "todo": "APP-001-02-account-lifecycle.md",
       "maturity": "DECOMPOSED",
       "elaboration_blockers": [],
-      "readiness": "BLOCKED",
+      "readiness": "READY",
       "status": "待执行",
       "depends_on": ["APP-001-01"],
       "blockers": [],
@@ -71,7 +90,7 @@
       "todo": "APP-001-03-pat-switch-ui.md",
       "maturity": "DECOMPOSED",
       "elaboration_blockers": [],
-      "readiness": "BLOCKED",
+      "readiness": "READY",
       "status": "待执行",
       "depends_on": ["APP-001-01"],
       "blockers": [],
