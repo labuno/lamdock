@@ -4,7 +4,7 @@
   "project_root": "../../..",
   "source_plan": "docs/APP-001-app-slot-shared-auth-plan.md",
   "traceability": "traceability.json",
-  "work_packages": ["APP-001A", "APP-001B", "APP-001C"],
+  "work_packages": ["APP-001A", "APP-001B", "APP-001C", "APP-001D"],
   "nodes": [
     {
       "id": "APP-001-01",
@@ -108,6 +108,57 @@
       "evidence": []
     },
     {
+      "id": "APP-001-05",
+      "title": "App 当前目标查询与切换前置检查",
+      "work_packages": ["APP-001D"],
+      "source_sections": ["### 4.6 App 当前目标与连接切换"],
+      "todo": "APP-001-05-app-target-guard.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "READY",
+      "status": "待执行",
+      "depends_on": ["APP-001-01"],
+      "blockers": [],
+      "consumes": ["artifact:app-slot-link"],
+      "produces": [
+        {
+          "id": "artifact:app-target",
+          "kind": "backend_behavior",
+          "description": "get_app_target 查询与 switch_to_pat_account 的外部连接、自定义连接前置检查"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --offline --test app_target",
+        "cargo test --offline --test app_slot_shared_auth"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "APP-001-06",
+      "title": "App 目标展示与连接切换",
+      "work_packages": ["APP-001D"],
+      "source_sections": ["### 4.6 App 当前目标与连接切换"],
+      "todo": "APP-001-06-app-target-ui.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": ["APP-001-03", "APP-001-05"],
+      "blockers": [],
+      "consumes": ["artifact:pat-switch-ui", "artifact:app-target"],
+      "produces": [
+        {
+          "id": "artifact:app-target-ui",
+          "kind": "frontend_behavior",
+          "description": "App 目标展示、解除外部连接后切换帐号、External API 接管 App 的前端流程"
+        }
+      ],
+      "integration_gates": [
+        "npm test -- src/App.handoff.test.tsx src/components/tray-quota-panel.test.tsx src/lib/app-target.test.ts"
+      ],
+      "evidence": []
+    },
+    {
       "id": "APP-001-04",
       "title": "全量检查、真实 App 验收与文档",
       "work_packages": ["APP-001C"],
@@ -121,9 +172,9 @@
       "elaboration_blockers": [],
       "readiness": "BLOCKED",
       "status": "待执行",
-      "depends_on": ["APP-001-02", "APP-001-03"],
+      "depends_on": ["APP-001-02", "APP-001-06"],
       "blockers": [],
-      "consumes": ["artifact:app-slot-lifecycle", "artifact:pat-switch-ui"],
+      "consumes": ["artifact:app-slot-lifecycle", "artifact:pat-switch-ui", "artifact:app-target-ui"],
       "produces": [
         {
           "id": "artifact:app-slot-acceptance",

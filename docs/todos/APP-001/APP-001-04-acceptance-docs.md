@@ -12,8 +12,8 @@
 
 ## Contract
 
-- **Requirements**: `REQ-WP-03`, `REQ-VER-01`, `REQ-VER-02`, `REQ-DONE-01`, `REQ-STOP-01`
-- **Consumes**: `artifact:app-slot-lifecycle`, `artifact:pat-switch-ui`
+- **Requirements**: `REQ-WP-03`, `REQ-VER-01`, `REQ-VER-02`, `REQ-VER-03`, `REQ-DONE-01`, `REQ-STOP-01`
+- **Consumes**: `artifact:app-slot-lifecycle`, `artifact:pat-switch-ui`, `artifact:app-target-ui`
 - **Produces**: `artifact:app-slot-acceptance` — 检查与验收证据、更新后的文档。
 - **Gates**: `make check`。
 - **Boundaries**: 真实验收由用户操作或在用户确认后进行；不在验收中删除真实帐号；验收结果与自动检查分开记录。
@@ -27,14 +27,14 @@
   - **Verification**: `make check` 退出码为 0。
   - **Artifact handoff**: 检查结果写入 execution-map 证据。
 - [ ] `T02` 真实 Codex App 验收。
-  - **Test and RED**: 手工场景：首次切换时本机未链接凭据被导入为 `app-` 帐号；切换后 App 能继续对话；token 刷新后槽位仍是链接且帐号文件 `last_refresh` 更新；同一帐号在 Profile 模式 CLI 中同时可用；App 内退出登录只删除链接；重命名、删除被链接帐号的结果符合设计 4.4。
+  - **Test and RED**: 手工场景：首次切换时本机未链接凭据被导入为 `app-` 帐号；切换后 App 能继续对话；token 刷新后槽位仍是链接且帐号文件 `last_refresh` 更新；同一帐号在 Profile 模式 CLI 中同时可用；App 内退出登录只删除链接；重命名、删除被链接帐号的结果符合设计 4.4。连接切换（设计 4.6）：External API 帐号接管 App 后可对话；切回 ChatGPT 帐号时出现确认，确认后 App 可对话且原 OpenAI 对话恢复可写；External API 帐号在 Profile 模式 CLI 中全程可用。
   - **Execution logic**: 用新构建的 LamDock；每步用 `ls -l ~/.codex/auth.json` 与字段名检查（不打印 token）记录状态；发现链接被替换为普通文件即触发停止条件。
   - **Files and responsibilities**: `docs/manual-acceptance.md` 记录场景、日期、版本与结果。
   - **Verification**: 所有场景结果为通过，或记录具体阻碍。
   - **Artifact handoff**: 验收记录。
 - [ ] `T03` 更新文档并收尾。
   - **Test and RED**: 不新增自动测试；改动文档中的相对链接逐一确认目标文件存在。
-  - **Execution logic**: README（中英）PAT 模式一节改为"共享同一份凭据、只接管 ChatGPT 帐号、API 帐号走 Profile"，并加入不要对默认目录执行 `codex login` 的提示；计划文档状态改为已实施；`docs/TODO.md` 与 `docs/README.md` 增加入口。
+  - **Execution logic**: README（中英）PAT 模式一节改为"共享同一份凭据、ChatGPT 帐号与 External API 帐号都可接管 App、API Key 格式的 Codex 帐号走 Profile、界面显示 App 当前目标"，并加入不要对默认目录执行 `codex login` 的提示；计划文档状态改为已实施；`docs/TODO.md` 与 `docs/README.md` 增加入口。
   - **Files and responsibilities**: `README.md`、`README.zh-CN.md`、`docs/APP-001-app-slot-shared-auth-plan.md`、`docs/TODO.md`、`docs/README.md`。
   - **Verification**: 相对链接目标均存在；校验脚本 `validate_todo_graph.py` 通过。
   - **Artifact handoff**: 产出 `artifact:app-slot-acceptance`。

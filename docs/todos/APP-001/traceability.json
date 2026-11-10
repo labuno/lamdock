@@ -5,7 +5,7 @@
     {
       "id": "plan",
       "path": "docs/APP-001-app-slot-shared-auth-plan.md",
-      "sha256": "feddde82e09f5ede066424ebe7b946334d6460f54789effbc98781f6f22401ef",
+      "sha256": "c473d514649de673f02f7ea23603b7567d373c3942d0ee6074aca3f97768711d",
       "role": "primary"
     }
   ],
@@ -13,43 +13,43 @@
     {
       "id": "objective",
       "disposition": "covered",
-      "requirement_ids": ["REQ-OBJ-01"],
-      "rationale": "接力目标由后端链接切换实现，由前端入口暴露。"
+      "requirement_ids": ["REQ-OBJ-01", "REQ-OBJ-02"],
+      "rationale": "接力目标由后端链接切换实现，由前端入口暴露；切换真正生效由 App 目标查询与连接切换保证。"
     },
     {
       "id": "scope",
       "disposition": "covered",
       "requirement_ids": ["REQ-SCP-01", "REQ-SCP-02"],
-      "rationale": "API Key 帐号排除与不修改 config.toml 两条边界分别落在后端与前端节点。"
+      "rationale": "API Key 帐号排除落在后端与前端节点；config.toml 只经确认后的 Attach / Detach 修改，落在前置检查与前端连接切换节点。"
     },
     {
       "id": "steps",
       "disposition": "covered",
-      "requirement_ids": ["REQ-STP-01", "REQ-STP-02", "REQ-STP-03", "REQ-STP-04"],
-      "rationale": "切换、保全、生命周期联动与当前帐号识别各有对应节点。"
+      "requirement_ids": ["REQ-STP-01", "REQ-STP-02", "REQ-STP-03", "REQ-STP-04", "REQ-STP-05", "REQ-STP-06"],
+      "rationale": "切换、保全、生命周期联动、当前帐号识别、App 目标判定与切换前置检查各有对应节点。"
     },
     {
       "id": "interfaces",
       "disposition": "covered",
-      "requirement_ids": ["REQ-IF-01", "REQ-IF-02"],
-      "rationale": "后端命令签名不变，前端按钮可用性是唯一可见接口变化。"
+      "requirement_ids": ["REQ-IF-01", "REQ-IF-02", "REQ-IF-03", "REQ-IF-04"],
+      "rationale": "切换命令签名不变；新增只读查询 get_app_target；前端新增按钮可用性、目标展示与连接切换入口。"
     },
     {
       "id": "work_packages",
       "disposition": "covered",
-      "requirement_ids": ["REQ-WP-01", "REQ-WP-02", "REQ-WP-03"],
-      "rationale": "三个工作包分别映射到后端、前端与验收节点。"
+      "requirement_ids": ["REQ-WP-01", "REQ-WP-02", "REQ-WP-03", "REQ-WP-04"],
+      "rationale": "四个工作包分别映射到后端槽位、前端入口、验收与 App 目标节点。"
     },
     {
       "id": "test_matrix",
       "disposition": "covered",
-      "requirement_ids": ["REQ-TM-01", "REQ-TM-02"],
-      "rationale": "后端集成测试与前端按钮状态测试分别归属后端与前端节点。"
+      "requirement_ids": ["REQ-TM-01", "REQ-TM-02", "REQ-TM-03", "REQ-TM-04"],
+      "rationale": "后端集成测试与前端测试分别归属对应的后端与前端节点。"
     },
     {
       "id": "verification",
       "disposition": "covered",
-      "requirement_ids": ["REQ-VER-01", "REQ-VER-02"],
+      "requirement_ids": ["REQ-VER-01", "REQ-VER-02", "REQ-VER-03"],
       "rationale": "全量检查与真实 App 验收集中在验收节点。"
     },
     {
@@ -73,6 +73,96 @@
   ],
   "requirements": [
     {
+      "id": "REQ-OBJ-02",
+      "kind": "objective",
+      "source_document": "plan",
+      "source_section": "## 1. Objective（目标）",
+      "source_quote": "切换必须真正生效",
+      "statement": "切换后 App 真正使用目标帐号或连接，界面显示 App 当前目标。",
+      "verification": "后端前置检查测试与前端编排、展示测试。",
+      "node_ids": ["APP-001-05", "APP-001-06"]
+    },
+    {
+      "id": "REQ-STP-05",
+      "kind": "steps",
+      "source_document": "plan",
+      "source_section": "### 4.6 App 当前目标与连接切换",
+      "source_quote": "App 当前目标按以下顺序判定",
+      "statement": "按 main 绑定、顶层 model_provider、帐号的顺序判定 App 当前目标。",
+      "verification": "tests/app_target.rs 覆盖三类目标及 openai、无配置、无法解析等边界。",
+      "node_ids": ["APP-001-05"]
+    },
+    {
+      "id": "REQ-STP-06",
+      "kind": "steps",
+      "source_document": "plan",
+      "source_section": "### 4.6 App 当前目标与连接切换",
+      "source_quote": "`switch_to_pat_account` 增加前置检查",
+      "statement": "App 挂外部连接或自定义连接时帐号切换被拒绝，且无副作用。",
+      "verification": "tests/app_target.rs 断言错误码与槽位、config.toml 字节不变。",
+      "node_ids": ["APP-001-05"]
+    },
+    {
+      "id": "REQ-IF-03",
+      "kind": "interfaces",
+      "source_document": "plan",
+      "source_section": "### 4.6 App 当前目标与连接切换",
+      "source_quote": "由新的只读查询 `get_app_target` 返回",
+      "statement": "新增只读 Tauri 命令 get_app_target 与前端 getAppTarget。",
+      "verification": "Rust 集成测试与 src/lib/api.test.ts。",
+      "node_ids": ["APP-001-05"]
+    },
+    {
+      "id": "REQ-IF-04",
+      "kind": "interfaces",
+      "source_document": "plan",
+      "source_section": "### 4.6 App 当前目标与连接切换",
+      "source_quote": "External API 帐号卡片增加\"Use in Codex App\"",
+      "statement": "概览与托盘显示 App 目标；外部连接下切换帐号需确认并先 Detach；External API 帐号可经确认 Attach 到 main。",
+      "verification": "app-target.test.ts 与主窗口、托盘测试。",
+      "node_ids": ["APP-001-06"]
+    },
+    {
+      "id": "REQ-WP-04",
+      "kind": "work_packages",
+      "source_document": "plan",
+      "source_section": "## 5. Work packages（工作包）",
+      "source_quote": "APP-001D",
+      "statement": "App 目标工作包由后端查询与前端连接切换两个节点完成。",
+      "verification": "两个节点 Gate 通过。",
+      "node_ids": ["APP-001-05", "APP-001-06"]
+    },
+    {
+      "id": "REQ-TM-03",
+      "kind": "test_matrix",
+      "source_document": "plan",
+      "source_section": "## 6. Test matrix（测试矩阵）",
+      "source_quote": "新增 `tests/app_target.rs`",
+      "statement": "App 目标判定与前置检查由新增集成测试覆盖。",
+      "verification": "cargo test --offline --test app_target 通过。",
+      "node_ids": ["APP-001-05"]
+    },
+    {
+      "id": "REQ-TM-04",
+      "kind": "test_matrix",
+      "source_document": "plan",
+      "source_section": "## 6. Test matrix（测试矩阵）",
+      "source_quote": "前端测试覆盖 App 目标展示",
+      "statement": "前端连接切换流程有编排与界面测试。",
+      "verification": "APP-001-06 Gate 通过。",
+      "node_ids": ["APP-001-06"]
+    },
+    {
+      "id": "REQ-VER-03",
+      "kind": "verification",
+      "source_document": "plan",
+      "source_section": "## 7. Verification（验证）",
+      "source_quote": "在真实 App 上验证连接切换",
+      "statement": "真实 App 上完成 External API 接管与切回 ChatGPT 帐号的验收。",
+      "verification": "docs/manual-acceptance.md 记录结果。",
+      "node_ids": ["APP-001-04"]
+    },
+    {
       "id": "REQ-OBJ-01",
       "kind": "objective",
       "source_document": "plan",
@@ -87,7 +177,7 @@
       "kind": "scope",
       "source_document": "plan",
       "source_section": "## 3. Scope（范围）",
-      "source_quote": "API Key 账号不能接管 Codex App",
+      "source_quote": "不能接管 Codex App；它们继续在 Profile 模式下使用",
       "statement": "API Key 帐号被后端拒绝，前端不提供可点击的切换。",
       "verification": "后端返回 APP_SLOT_API_KEY_UNSUPPORTED 且槽位不变；前端测试按钮禁用。",
       "node_ids": ["APP-001-01", "APP-001-03"]
@@ -97,10 +187,10 @@
       "kind": "scope",
       "source_document": "plan",
       "source_section": "## 3. Scope（范围）",
-      "source_quote": "不修改 `~/.codex/config.toml`",
-      "statement": "切换只处理凭据文件，不触碰 App 的 config.toml。",
-      "verification": "集成测试与代码审查确认切换路径不写 config.toml。",
-      "node_ids": ["APP-001-01"]
+      "source_quote": "帐号切换本身只处理凭据文件",
+      "statement": "帐号切换不写 config.toml；config.toml 只经用户确认的 Attach / Detach 修改，手工 model_provider 不改动。",
+      "verification": "集成测试断言切换与前置检查前后 config.toml 字节不变；前端测试断言写操作前有确认。",
+      "node_ids": ["APP-001-01", "APP-001-05", "APP-001-06"]
     },
     {
       "id": "REQ-STP-01",
@@ -267,6 +357,6 @@
     "status": "PASS",
     "unresolved_requirements": [],
     "unjustified_nodes": [],
-    "reviewed_at": "2026-11-10T11:40:00+08:00"
+    "reviewed_at": "2026-11-10T13:50:00+08:00"
   }
 }

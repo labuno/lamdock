@@ -11,6 +11,8 @@ PAT 模式的目的是在某个帐号额度用完后，切换到另一个帐号�
 
 帐号无论是在 Profile 模式还是 PAT 模式下登录或添加的，在两种模式下都能使用。切换 LamDock 的模式只改变界面上提供的操作，不改动任何凭据。
 
+切换必须真正生效：App 当前挂着外部 API 连接时，切换 ChatGPT 帐号不能只换凭据就报告成功；用户也能从同一处把 App 切到某个 External API 连接。界面始终显示 App 当前用的是哪个帐号或哪个连接。
+
 ## 2. Research（调研结论）
 
 ### 2.1 现状与根因
@@ -23,6 +25,8 @@ PAT 模式的目的是在某个帐号额度用完后，切换到另一个帐号�
   - 帐号卡片和托盘在帐号没有 `auth.json` 时仍可点击切换，点击后才报 `AUTH_NOT_FOUND`。托盘对 API 帐号和 main 也显示切换按钮。
   - API Key 帐号可以被切进 `~/.codex`，但 `~/.codex/config.toml` 的 provider 仍是 OpenAI，凭据和 provider 对不上。
 - Codex App 的"对话只读"提示由 Codex 自己判断：对话记录的 provider 与当前 provider 不同就锁定为只读。LamDock 的接力会改写对话的 `model_provider`，API 帐号的 provider 显示名（如 `pro API connection`）也由 LamDock 生成。这说明 App 槽位不能改变 provider。
+- App 用哪个连接由 `~/.codex/config.toml` 决定：LamDock 通过 Provider Hub 中 `profile_id = main` 的绑定，把外部连接写进这个文件（Providers 页的 Attach / Detach，带预览、指纹校验和可回滚的 journal）。存在这个绑定时，App 走外部连接，`auth.json` 不起作用。现在的切换不检查这一点：用户切换 ChatGPT 帐号后看到"成功"，App 实际仍在用外部连接，旧对话还会变成只读。这是"切换后仍不能用"的第二个原因。
+- 用户也可能手工在 `config.toml` 顶层写 `model_provider`。这类配置不归 LamDock 管理，LamDock 不应改动。
 
 ### 2.2 Codex 凭据写入实测
 
@@ -48,11 +52,13 @@ PAT 模式的目的是在某个帐号额度用完后，切换到另一个帐号�
 - 切换前保全槽位中的普通文件凭据：写回所属帐号，或导入为新帐号。
 - 当前帐号识别、帐号删除和重命名与槽位链接保持一致。
 - 前端在 PAT 模式下只对可接管 App 的帐号提供切换。
+- 识别 App 当前目标（帐号、LamDock 管理的外部连接、用户自定义连接），在界面上显示。
+- 切换 ChatGPT 帐号时，若 App 挂着 LamDock 管理的外部连接，经用户确认后先解除连接再切换；External API 帐号可经用户确认后接管 App。
 
 范围外与限制：
 
-- API Key 账号不能接管 Codex App；它们继续在 Profile 模式下使用，避免 App 的 provider 变化导致已有对话只读。
-- 不修改 `~/.codex/config.toml`，App 的 provider、模型与项目信任设置保持原样。
+- API Key 账号（`auth.json` 为 API Key 格式的 Codex 帐号）不能接管 Codex App；它们继续在 Profile 模式下使用。需要让 App 走 API 时，使用 External API 帐号。
+- 帐号切换本身只处理凭据文件；`~/.codex/config.toml` 只在用户确认后，通过既有的 Attach / Detach 事务修改。用户手工写入的 `model_provider` 不做任何改动，只提示原因。
 - 不改变 Profile 模式的接力（Handoff）逻辑。
 - 不自动迁移：已有的复制式凭据在下一次切换时才被保全，不在启动时改动用户文件。
 
@@ -101,23 +107,50 @@ PAT 模式的目的是在某个帐号额度用完后，切换到另一个帐号�
 - 切换成功的状态文案改为"Codex App now uses <帐号>. Restarting ChatGPT…"。
 - 模式切换本身不调用后端凭据操作。
 
+### 4.6 App 当前目标与连接切换
+
+App 当前目标按以下顺序判定，由新的只读查询 `get_app_target` 返回：
+
+| 目标 | 判定 | 返回 |
+| --- | --- | --- |
+| 外部连接 | Provider Hub 中存在 `profile_id = main` 的绑定 | `provider`，带 provider id 和显示名 |
+| 自定义连接 | 无上述绑定，`~/.codex/config.toml` 顶层 `model_provider` 存在且不是 `openai` | `customProvider`，带 provider id |
+| 帐号 | 其余情况 | `account`，带按 4.4 识别出的帐号 id；无法识别时为空 |
+
+`switch_to_pat_account` 增加前置检查，命令名与参数不变：
+
+- 目标为外部连接：返回 `APP_SLOT_PROVIDER_ATTACHED`，槽位不变。
+- 目标为自定义连接：返回 `APP_SLOT_CUSTOM_PROVIDER`，槽位不变。
+
+前端（PAT 模式下）：
+
+- 概览与托盘显示一行"Codex App: <帐号名或连接名>"。
+- 切换 ChatGPT 帐号且目标为外部连接时，弹出确认："Codex App is using <连接名>. Detach it and switch to <帐号>?"，并说明在该连接下产生的对话会变成只读。确认后依次执行 `main` 的 Detach 预览与执行、帐号切换、重启 ChatGPT；任一步失败即停止并显示错误，不继续后续步骤。
+- 目标为自定义连接时，切换按钮给出原因（`config.toml` 中有手工设置的 provider），不提供一键处理。
+- External API 帐号卡片增加"Use in Codex App"。确认弹窗说明 App 中原有的 OpenAI 对话会变成只读，切回 ChatGPT 帐号后恢复。确认后对 `main` 执行 Attach 预览与执行（provider 为该帐号绑定的 provider，模型为该帐号当前模型），再重启 ChatGPT。App 已在使用该连接时按钮禁用，显示"In use"。
+- Attach / Detach 全部复用 Providers 页的既有服务与错误处理，不新增写 `config.toml` 的路径。
+
 ## 5. Work packages（工作包）
 
 - **APP-001A 后端槽位**：链接式切换、凭据保全与导入、当前帐号识别、删除和重命名联动。
 - **APP-001B 前端入口**：PAT 模式下主窗口与托盘的切换按钮可用性和文案。
 - **APP-001C 验收与文档**：真实 App 验收、README 与手工验收清单更新。
+- **APP-001D App 目标与连接切换**：`get_app_target` 查询与切换前置检查（后端）；App 目标展示、解除连接后切换、External API 接管 App（前端）。
 
 ## 6. Test matrix（测试矩阵）
 
 - 新增 `tests/app_slot_shared_auth.rs`，覆盖：链接建立且经槽位写入落到帐号文件；在帐号之间切换不改动凭据；未知凭据导入及重名；较新凭据写回、较旧凭据不覆盖；团队帐号按用户匹配；API Key 帐号被拒绝且槽位不变；当前帐号按链接识别；删除清除链接；重命名重建链接。
 - 更新 `tests/integration_pat_accounts.rs` 与 `account.rs` 内的单元测试，使其断言链接语义而不是复制语义。
 - 前端测试覆盖 PAT 模式按钮状态：无凭据帐号、API 帐号、main、当前帐号四种情况，主窗口与托盘各一组。
+- 新增 `tests/app_target.rs`，覆盖三类 App 目标的判定，以及目标为外部连接或自定义连接时切换被拒绝且槽位不变。
+- 前端测试覆盖 App 目标展示、外部连接下切换帐号的确认与调用顺序（Detach → 切换 → 重启）、Detach 失败时不切换、External API 接管 App 的确认与调用顺序（Attach → 重启）、自定义连接时的原因提示。
 
 ## 7. Verification（验证）
 
 - 每个节点运行自己的测试命令；最终 `make check` 全部通过。
 - 在真实 Codex App 上验证：切换后 App 可以继续对话；等待或触发一次 token 刷新后，链接仍在且帐号目录文件已更新；同一帐号在 Profile 模式 CLI 中同时可用；App 内退出登录只移除链接；重命名、删除被链接的帐号后 App 状态符合 4.4。
 - 本机已有的未链接凭据（当前 App 帐号）在第一次切换后出现为 `app-` 开头的新帐号，并可切回。
+- 在真实 App 上验证连接切换：External API 帐号接管 App 后可对话；再切回 ChatGPT 帐号后 App 可对话、原 OpenAI 对话恢复可写；External API 帐号在 Profile 模式 CLI 中全程可用。
 
 ## 8. Done criteria（完成标准）
 
@@ -130,8 +163,11 @@ PAT 模式的目的是在某个帐号额度用完后，切换到另一个帐号�
 - 真实验收发现 Codex 刷新 token 时替换掉符号链接（槽位变回普通文件）：停止推进，改为评估"复制加写回"方案。
 - 任一步骤可能删除或覆盖用户凭据而无法保全：停止并报告。
 - 测试需要真实帐号的 token 才能通过：停止，改用假数据或转为手工验收。
+- 既有 Attach / Detach 服务拒绝或无法安全处理 `main`（例如需要新增写 `config.toml` 的路径）：停止，回到设计评审。
 
 ## 10. Risks and open questions（风险与待确认）
 
 - 在槽位已链接时直接执行不带 `CODEX_HOME` 的 `codex login` 登录另一个帐号，新凭据会写进被链接的帐号文件。App 界面需要先退出登录才能换号，风险较低；README 中提示用户在 LamDock 中添加帐号，而不是对默认目录执行 `codex login`。
 - 链接目标使用绝对路径；用户移动 home 目录后链接失效，App 表现为未登录，重新切换即可恢复。
+- App 在外部连接与 OpenAI 之间切换时，另一侧产生的对话会变成只读，这是 Codex 的规则，LamDock 只能在确认弹窗中提前说明。
+- Detach 成功而随后的帐号切换失败时，App 处于"已回到 OpenAI、仍用原凭据"的状态，可正常使用；错误提示中说明这一点，用户可重试切换。
