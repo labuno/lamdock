@@ -3,6 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import * as api from '../lib/api';
 import type {
   AccountNoteUpdate,
+  AppTarget,
   UpdateAccountProxyRequest,
   CodexAccount,
   CodexSession,
@@ -45,12 +46,14 @@ interface AccountState {
   activeSession: CodexSession | undefined;
   divergedStrategy: DivergedSessionStrategy;
   refreshing: boolean;
+  appTarget: AppTarget | null;
 
   selectedAccount: () => CodexAccount | undefined;
   setSelectedAccountId: (id: string) => void;
   setDivergedStrategy: (strategy: DivergedSessionStrategy) => void;
   refresh: (options?: { refreshQuotasNow?: boolean }) => Promise<void>;
   refreshActiveSession: (accounts?: CodexAccount[]) => Promise<void>;
+  refreshAppTarget: () => Promise<void>;
   relayResumeTo: (account: CodexAccount) => Promise<boolean>;
   relaySessionTo: (
     session: CodexSession,
@@ -69,6 +72,7 @@ export const useAccountStore = create<AccountState>()(
     activeSession: undefined,
     divergedStrategy: readDivergedStrategy(),
     refreshing: false,
+    appTarget: null,
 
     selectedAccount: () => {
       const { accounts, selectedAccountId } = get();
@@ -107,6 +111,7 @@ export const useAccountStore = create<AccountState>()(
           .healthCheck()
           .then(app.setHealth)
           .catch((e) => app.setError(formatError(e)));
+        void get().refreshAppTarget();
         const accountData = await api.listAccounts();
         await providerRefresh;
         applyAccountsList(accountData, set, get, false, !options?.refreshQuotasNow);
@@ -135,6 +140,15 @@ export const useAccountStore = create<AccountState>()(
       );
       const latest = all.sort((a, b) => b.modifiedAt - a.modifiedAt)[0];
       set({ activeSession: latest });
+    },
+
+    refreshAppTarget: async () => {
+      try {
+        set({ appTarget: await api.getAppTarget() });
+      } catch {
+        /* unknown target leaves switching to the backend guard */
+        set({ appTarget: null });
+      }
     },
 
     relayResumeTo: async (account) => {

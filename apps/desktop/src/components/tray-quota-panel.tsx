@@ -17,11 +17,18 @@ import {
   relayResumeSession,
   getProfileQuota,
   getAuthMode,
+  getAppTarget,
   inTauri,
+  listProvidersV2,
   restartChatgpt,
   setQuotaPopoverOpacity,
-  switchToPatAccount,
 } from '../lib/api';
+import {
+  appTargetLabel,
+  defaultAppTargetActions,
+  switchAppToAccount,
+  switchAppToProvider,
+} from '../lib/app-target';
 import {
   averagePrimaryRemainingPercent,
   countAccountsWithAvailableQuota,
@@ -43,9 +50,11 @@ import { scheduleTrayPopoverWindowSize } from '../lib/tray-popover-size';
 import type { ThemeMode } from '../lib/theme';
 import { TRAY_POPOVER_OPACITY_PERCENT } from '../lib/tray-popover-prefs';
 import type {
+  AppTarget,
   CodexAccount,
   CodexSession,
   DivergedSessionStrategy,
+  ProfileProviderBindingViewV2,
   UsageQuotaSnapshot,
   AntigravityQuotaResponse,
 } from '../lib/types';
@@ -343,6 +352,7 @@ interface TrayPopoverHeaderProps {
   resolvedTheme: 'light' | 'dark';
   onToggleTheme: () => void;
   activeProviderId?: string;
+  codexAppLabel?: string | null;
 }
 
 function TrayPopoverHeader({
@@ -359,6 +369,7 @@ function TrayPopoverHeader({
   resolvedTheme,
   onToggleTheme,
   activeProviderId,
+  codexAppLabel,
 }: TrayPopoverHeaderProps) {
   const handleCopy = () => {
     if (activeSessionId) {
@@ -441,6 +452,12 @@ function TrayPopoverHeader({
           <strong>{availableQuotaAccounts}</strong>
         </div>
       </section>
+
+      {codexAppLabel ? (
+        <p className="trayCodexAppTarget" aria-label="Codex App target" title={codexAppLabel}>
+          Codex App: <strong>{codexAppLabel}</strong>
+        </p>
+      ) : null}
 
       <section className="trayActiveSource" aria-label="Active source session">
         <div className="trayActiveSourceBar">
@@ -735,6 +752,9 @@ interface TrayAccountListProps {
   onRefreshAccount: (account: CodexAccount) => void;
   onRelayTo: (account: CodexAccount) => void;
   onSwitchTo: (account: CodexAccount) => void;
+  onAttachToCodexApp: (account: CodexAccount) => void;
+  appTarget: AppTarget | null;
+  bindings: ProfileProviderBindingViewV2[];
   isDark: boolean;
   antigravityQuota: AntigravityQuotaResponse | null;
 }
@@ -752,6 +772,9 @@ function TrayAccountList({
   onRefreshAccount,
   onRelayTo,
   onSwitchTo,
+  onAttachToCodexApp,
+  appTarget,
+  bindings,
   isDark,
   antigravityQuota,
 }: TrayAccountListProps) {
@@ -828,7 +851,14 @@ function TrayAccountList({
               const switchBlocker = codexAppSwitchBlocker(account, {
                 isActive: isActiveAccount,
                 isApiAccount,
+                appTarget,
               });
+              const codexAppUsesProvider =
+                appTarget?.kind === 'provider' &&
+                bindings.some(
+                  (binding) =>
+                    binding.profileId === account.id && binding.providerId === appTarget.providerId,
+                );
 
               const accountTheme = getAccountTheme(account.id, index, isDark);
               const quotaWindows = quotaDisplayWindows(quota);
@@ -895,28 +925,46 @@ function TrayAccountList({
                           <IconRefresh size={12} />
                         </button>
                       ) : null}
-                      <button
-                        type="button"
-                        className="trayRelayButton"
-                        style={btnStyle}
-                        disabled={
-                          authMode === 'pat'
-                            ? switchBlocker !== null || relayingAccountId === account.id
-                            : !activeSession || relayingAccountId === account.id
-                        }
-                        title={authMode === 'pat' ? (switchBlocker ?? undefined) : undefined}
-                        onClick={() =>
-                          authMode === 'pat' ? onSwitchTo(account) : onRelayTo(account)
-                        }
-                      >
-                        {authMode === 'pat'
-                          ? isActiveAccount
-                            ? 'Active'
-                            : 'Switch'
-                          : activeSession?.accountId === account.id
-                            ? 'Resume'
-                            : 'Relay'}
-                      </button>
+                      {authMode === 'pat' && isApiAccount ? (
+                        <button
+                          type="button"
+                          className="trayRelayButton"
+                          style={btnStyle}
+                          aria-label="Use in Codex App"
+                          disabled={codexAppUsesProvider || relayingAccountId === account.id}
+                          title={
+                            codexAppUsesProvider
+                              ? 'Codex App already uses this connection'
+                              : 'Let the Codex App use this connection'
+                          }
+                          onClick={() => onAttachToCodexApp(account)}
+                        >
+                          {codexAppUsesProvider ? 'In use' : 'Use in App'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="trayRelayButton"
+                          style={btnStyle}
+                          disabled={
+                            authMode === 'pat'
+                              ? switchBlocker !== null || relayingAccountId === account.id
+                              : !activeSession || relayingAccountId === account.id
+                          }
+                          title={authMode === 'pat' ? (switchBlocker ?? undefined) : undefined}
+                          onClick={() =>
+                            authMode === 'pat' ? onSwitchTo(account) : onRelayTo(account)
+                          }
+                        >
+                          {authMode === 'pat'
+                            ? isActiveAccount
+                              ? 'Active'
+                              : 'Switch'
+                            : activeSession?.accountId === account.id
+                              ? 'Resume'
+                              : 'Relay'}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -986,6 +1034,9 @@ export function TrayQuotaPanel() {
   const [refreshingQuotaIds, setRefreshingQuotaIds] = useState<string[]>([]);
   const [relayingAccountId, setRelayingAccountId] = useState<string>('');
   const [apiAccountIds, setApiAccountIds] = useState<string[]>([]);
+  const [bindings, setBindings] = useState<ProfileProviderBindingViewV2[]>([]);
+  const [appTarget, setAppTarget] = useState<AppTarget | null>(null);
+  const [providerNames, setProviderNames] = useState<Array<{ id: string; name: string }>>([]);
   const [activeProviderId, setActiveProviderId] = useState('codex');
   const [authMode, setAuthMode] = useState<'oauth' | 'pat'>('oauth');
   const {
@@ -1086,11 +1137,21 @@ export function TrayQuotaPanel() {
         void loadActiveSession(accountData);
         let apiIds: string[] = [];
         try {
-          const bindings = await listProfileProviderBindingsV2();
-          apiIds = bindings.map((binding) => binding.profileId);
+          const bindingData = await listProfileProviderBindingsV2();
+          apiIds = bindingData.map((binding) => binding.profileId);
           setApiAccountIds(apiIds);
+          setBindings(bindingData);
         } catch {
           /* provider hub is optional; treat as no External API accounts */
+        }
+        if (mode === 'pat') {
+          try {
+            setAppTarget(await getAppTarget());
+            const { providers } = await listProvidersV2();
+            setProviderNames(providers.map(({ id, name }) => ({ id, name })));
+          } catch {
+            /* an unknown target leaves switching to the backend guard */
+          }
         }
         const ids = accountData.map((a) => a.id);
         const quotaIds = quotaRefreshProfileIds(accountData, apiIds);
@@ -1230,13 +1291,52 @@ export function TrayQuotaPanel() {
     setRelayingAccountId(account.id);
     setStatus(`Switching to ${account.displayName}...`);
     try {
-      await switchToPatAccount(account.id);
+      const connectionName =
+        providerNames.find((provider) => provider.id === appTarget?.providerId)?.name ??
+        appTarget?.providerId ??
+        '';
+      const switched = await switchAppToAccount(
+        appTarget,
+        account,
+        connectionName,
+        defaultAppTargetActions(),
+      );
+      if (!switched) {
+        setStatus('Switch cancelled');
+        return;
+      }
       await load(false);
       await refreshAccountQuota(accounts.find((a) => a.id === 'main') ?? account);
       setStatus(`Codex App now uses ${account.displayName}. Restarting ChatGPT…`);
       await restartChatgpt();
     } catch (err) {
       setStatus(formatError(err));
+      void load(false);
+    } finally {
+      setRelayingAccountId('');
+    }
+  }
+
+  async function attachToCodexApp(account: CodexAccount) {
+    const binding = bindings.find((item) => item.profileId === account.id);
+    if (!binding) return;
+    const name =
+      providerNames.find((provider) => provider.id === binding.providerId)?.name ??
+      account.displayName;
+    setRelayingAccountId(account.id);
+    try {
+      const switched = await switchAppToProvider(
+        appTarget,
+        { providerId: binding.providerId, model: binding.selectedModel, name },
+        defaultAppTargetActions(),
+      );
+      if (!switched) return;
+      await load(false);
+      setStatus(`Codex App now uses ${name}. Restarting ChatGPT…`);
+      await restartChatgpt();
+    } catch (err) {
+      setStatus(formatError(err));
+      void load(false);
     } finally {
       setRelayingAccountId('');
     }
@@ -1349,6 +1449,11 @@ export function TrayQuotaPanel() {
         resolvedTheme={resolvedTheme}
         onToggleTheme={handleToggleTheme}
         activeProviderId={activeProviderId}
+        codexAppLabel={
+          authMode === 'pat' && !isAntigravityActive
+            ? appTargetLabel(appTarget, accounts, providerNames)
+            : null
+        }
       />
 
       <TrayAccountList
@@ -1364,6 +1469,9 @@ export function TrayQuotaPanel() {
         onRefreshAccount={(account) => void refreshAccountQuota(account)}
         onRelayTo={(account) => void relayTo(account)}
         onSwitchTo={(account) => void switchTo(account)}
+        onAttachToCodexApp={(account) => void attachToCodexApp(account)}
+        appTarget={appTarget}
+        bindings={bindings}
         isDark={resolvedTheme === 'dark'}
         antigravityQuota={antigravityQuota}
       />

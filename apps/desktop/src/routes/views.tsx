@@ -7,6 +7,7 @@ import {
   quotaDisplayWindows,
 } from '../lib/quota';
 import { authModeLabel, codexAppSwitchBlocker } from '../lib/auth';
+import { appTargetLabel } from '../lib/app-target';
 import {
   groupAntigravityModels,
   quotaBucketUsedPercent,
@@ -14,6 +15,7 @@ import {
 } from '../lib/antigravity';
 import type {
   AccountNoteUpdate,
+  AppTarget,
   UpdateAccountProxyRequest,
   CodexAccount,
   CodexSession,
@@ -280,6 +282,8 @@ export function Overview({
   apiAccountIds = [],
   login,
   switchAccount,
+  attachToCodexApp = () => {},
+  appTarget = null,
   exportCpa,
   openHandoff,
   relayLatest,
@@ -308,6 +312,8 @@ export function Overview({
   apiAccountIds?: string[];
   login: (account: CodexAccount) => void;
   switchAccount: (account: CodexAccount) => void;
+  attachToCodexApp?: (account: CodexAccount) => void;
+  appTarget?: AppTarget | null;
   exportCpa: (account: CodexAccount) => void;
   openHandoff: (targetAccount: CodexAccount) => void;
   relayLatest: (targetAccount: CodexAccount) => void;
@@ -354,6 +360,8 @@ export function Overview({
   const totalCount = isAntigravity ? antigravityModelCount : accounts.length;
 
   const providersCount = isAntigravity ? 1 : providers.length;
+  const codexAppLabel =
+    authMode === 'pat' && !isAntigravity ? appTargetLabel(appTarget, accounts, providers) : null;
   return (
     <div className="overviewPage">
       <div className="metricGrid">
@@ -396,6 +404,11 @@ export function Overview({
       <div className="overviewFleetHeading">
         <h2>{isAntigravity ? 'Antigravity Models' : 'Accounts Fleet'}</h2>
         <span className="workspaceCount">{totalCount} total</span>
+        {codexAppLabel ? (
+          <span className="workspaceCount" aria-label="Codex App target">
+            Codex App: <strong>{codexAppLabel}</strong>
+          </span>
+        ) : null}
         <div className="overviewFleetControls">
           <div className="overviewTabs" role="tablist" aria-label="Integrations">
             <button
@@ -446,6 +459,8 @@ export function Overview({
           apiAccountIds={apiAccountIds}
           login={login}
           switchAccount={switchAccount}
+          attachToCodexApp={attachToCodexApp}
+          appTarget={appTarget}
           exportCpa={exportCpa}
           openHandoff={openHandoff}
           relayLatest={relayLatest}
@@ -525,6 +540,8 @@ export function Accounts({
   apiAccountIds = [],
   login,
   switchAccount,
+  attachToCodexApp = () => {},
+  appTarget = null,
   exportCpa,
   openHandoff,
   relayLatest,
@@ -550,6 +567,8 @@ export function Accounts({
   apiAccountIds?: string[];
   login: (account: CodexAccount) => void;
   switchAccount: (account: CodexAccount) => void;
+  attachToCodexApp?: (account: CodexAccount) => void;
+  appTarget?: AppTarget | null;
   exportCpa: (account: CodexAccount) => void;
   openHandoff: (targetAccount: CodexAccount) => void;
   relayLatest: (targetAccount: CodexAccount) => void;
@@ -669,7 +688,12 @@ export function Accounts({
           const switchBlocker = codexAppSwitchBlocker(account, {
             isActive: isActiveAccount,
             isApiAccount,
+            appTarget,
           });
+          const codexAppUsesProvider =
+            isApiAccount &&
+            appTarget?.kind === 'provider' &&
+            appTarget.providerId === account.providerId;
           const primaryBtnClass = compactButtons
             ? 'accountActionBtn accountActionBtn--primary'
             : 'accountActionBtn';
@@ -977,6 +1001,26 @@ export function Accounts({
                     >
                       <IconPlay size={13} /> Handoff
                     </UIButton>
+                    {authMode === 'pat' ? (
+                      <UIButton
+                        size="sm"
+                        variant="default"
+                        className="accountActionBtn accountActionBtn--secondary"
+                        aria-label="Use in Codex App"
+                        disabled={codexAppUsesProvider}
+                        title={
+                          codexAppUsesProvider
+                            ? 'Codex App already uses this connection'
+                            : 'Let the Codex App use this connection'
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          attachToCodexApp(account);
+                        }}
+                      >
+                        {codexAppUsesProvider ? 'In use' : 'Use in App'}
+                      </UIButton>
+                    ) : null}
                     {!compactButtons ? (
                       <>
                         <UIButton

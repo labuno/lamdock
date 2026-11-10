@@ -2451,6 +2451,14 @@ html[data-tray-popover='1'] #root {
   color: var(--muted);
   font-size: 12px;
 }
+.trayCodexAppTarget {
+  margin: 6px 14px 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .trayPopoverFoot {
   flex: 0 0 auto;
   padding: 6px 10px 8px;

@@ -18,6 +18,16 @@ describe('codexAppSwitchBlocker', () => {
     expect(codexAppSwitchBlocker({ ...account, hasAuth: false }, free)).toMatch(/log in/i);
     expect(codexAppSwitchBlocker({ ...account, authMode: 'api_key' }, free)).toMatch(/api key/i);
   });
+
+  it('follows what the Codex App currently runs on', () => {
+    const custom = { kind: 'customProvider' as const, accountId: null, providerId: 'my-proxy' };
+    const attached = { kind: 'provider' as const, accountId: null, providerId: 'account-pro' };
+
+    expect(codexAppSwitchBlocker(account, { ...free, appTarget: custom })).toMatch(/config\.toml/);
+    expect(
+      codexAppSwitchBlocker(account, { ...free, isActive: true, appTarget: attached }),
+    ).toBeNull();
+  });
 });
 
 describe('authModeLabel', () => {

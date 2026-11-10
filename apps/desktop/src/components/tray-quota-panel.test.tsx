@@ -4,6 +4,7 @@ import { TrayQuotaPanel } from './tray-quota-panel';
 import * as api from '../lib/api';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { confirm as dialogConfirm } from '@tauri-apps/plugin-dialog';
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(),
@@ -18,6 +19,10 @@ vi.mock('@tauri-apps/api/webviewWindow', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  confirm: vi.fn(async () => true),
 }));
 
 vi.mock('../lib/tray-popover-size', () => ({
@@ -40,6 +45,12 @@ vi.mock('../lib/api', () => ({
   restartChatgpt: vi.fn(),
   setQuotaPopoverOpacity: vi.fn(),
   switchToPatAccount: vi.fn(),
+  getAppTarget: vi.fn(),
+  listProvidersV2: vi.fn(),
+  planAttachProviderV2: vi.fn(),
+  executeAttachProviderV2: vi.fn(),
+  planDetachProviderV2: vi.fn(),
+  executeDetachProviderV2: vi.fn(),
   getAntigravityQuota: vi.fn(),
   getAntigravityPort: vi.fn(),
 }));
@@ -152,6 +163,12 @@ beforeEach(() => {
   vi.mocked(api.getAuthMode).mockResolvedValue('oauth');
   vi.mocked(api.restartChatgpt).mockResolvedValue();
   vi.mocked(api.switchToPatAccount).mockResolvedValue();
+  vi.mocked(api.getAppTarget).mockResolvedValue({
+    kind: 'account',
+    accountId: null,
+    providerId: null,
+  });
+  vi.mocked(api.listProvidersV2).mockResolvedValue({ revision: 0, providers: [] });
   vi.mocked(api.getAntigravityPort).mockResolvedValue(5001);
   vi.mocked(api.getAntigravityQuota).mockResolvedValue({ ok: true, models: [] });
   vi.mocked(listen).mockResolvedValue(vi.fn());
@@ -320,12 +337,17 @@ describe('TrayQuotaPanel', () => {
         name: 'Switch',
       });
 
-    await waitFor(() => expect(switchIn('pro')).toHaveProperty('disabled', true));
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('article', { name: 'pro account' })).getByRole('button', {
+          name: 'Use in Codex App',
+        }),
+      ).toBeTruthy(),
+    );
     const blocked: Array<[string, RegExp]> = [
       ['main', /main profile/i],
       ['logged-out', /log in/i],
       ['key', /api key/i],
-      ['pro', /external api/i],
     ];
     for (const [name, reason] of blocked) {
       expect(switchIn(name)).toHaveProperty('disabled', true);
@@ -337,6 +359,100 @@ describe('TrayQuotaPanel', () => {
     await waitFor(() =>
       expect(screen.getByText('Codex App now uses work. Restarting ChatGPT…')).toBeTruthy(),
     );
+  });
+
+  describe('Codex App target in PAT mode', () => {
+    beforeEach(() => {
+      vi.mocked(api.getAuthMode).mockResolvedValue('pat');
+      vi.mocked(api.listAccounts).mockResolvedValue([
+        { ...account, id: 'main', displayName: 'main' },
+        { ...account, id: 'pro', displayName: 'pro' },
+        { ...account, id: 'work', displayName: 'work', authMode: 'oauth' },
+      ]);
+      vi.mocked(api.listProfileProviderBindingsV2).mockResolvedValue([
+        {
+          profileId: 'pro',
+          providerId: 'account-pro',
+          selectedModel: 'gpt-5',
+          routeKind: 'direct',
+          revision: 1,
+          providerRevision: 1,
+        },
+      ]);
+      vi.mocked(api.listProvidersV2).mockResolvedValue({
+        revision: 1,
+        providers: [{ id: 'account-pro', name: 'pro API connection' }],
+      } as never);
+      vi.mocked(api.listCachedAccounts).mockResolvedValue([]);
+      vi.mocked(api.listCachedQuotas).mockResolvedValue([]);
+      vi.mocked(api.planDetachProviderV2).mockResolvedValue({
+        planId: 'detach-1',
+        fingerprint: 'fp-d',
+      } as never);
+      vi.mocked(api.executeDetachProviderV2).mockResolvedValue({} as never);
+      vi.mocked(api.planAttachProviderV2).mockResolvedValue({
+        planId: 'attach-1',
+        fingerprint: 'fp-a',
+        blockers: [],
+      } as never);
+      vi.mocked(api.executeAttachProviderV2).mockResolvedValue({} as never);
+      vi.mocked(dialogConfirm).mockResolvedValue(true);
+    });
+
+    const rowButton = (row: string, name: string) =>
+      within(screen.getByRole('article', { name: `${row} account` })).getByRole('button', {
+        name,
+      });
+
+    it('shows the connection and detaches it before switching accounts', async () => {
+      vi.mocked(api.getAppTarget).mockResolvedValue({
+        kind: 'provider',
+        accountId: null,
+        providerId: 'account-pro',
+      });
+
+      render(<TrayQuotaPanel />);
+      await waitFor(() =>
+        expect(screen.getByLabelText('Codex App target').textContent).toBe(
+          'Codex App: pro API connection (External API)',
+        ),
+      );
+      expect(rowButton('pro', 'Use in Codex App')).toHaveProperty('disabled', true);
+
+      fireEvent.click(rowButton('work', 'Switch'));
+
+      await waitFor(() => expect(api.restartChatgpt).toHaveBeenCalledTimes(1));
+      expect(api.planDetachProviderV2).toHaveBeenCalledWith('main');
+      expect(api.switchToPatAccount).toHaveBeenCalledWith('work');
+      expect(vi.mocked(api.executeDetachProviderV2).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(api.switchToPatAccount).mock.invocationCallOrder[0],
+      );
+    });
+
+    it('lets an External API account take over the Codex App', async () => {
+      vi.mocked(api.getAppTarget).mockResolvedValue({
+        kind: 'account',
+        accountId: 'work',
+        providerId: null,
+      });
+
+      render(<TrayQuotaPanel />);
+      await waitFor(() =>
+        expect(screen.getByLabelText('Codex App target').textContent).toBe('Codex App: work'),
+      );
+
+      fireEvent.click(rowButton('pro', 'Use in Codex App'));
+
+      await waitFor(() => expect(api.restartChatgpt).toHaveBeenCalledTimes(1));
+      expect(api.planAttachProviderV2).toHaveBeenCalledWith({
+        profileId: 'main',
+        providerId: 'account-pro',
+        selectedModel: 'gpt-5',
+      });
+      expect(
+        screen.getByText('Codex App now uses pro API connection. Restarting ChatGPT…'),
+      ).toBeTruthy();
+    });
   });
 
   it('renders API-key-like Codex auth as generic Auth in tray rows', async () => {

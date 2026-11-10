@@ -26,6 +26,7 @@ import {
 import { ApiAccountFlow } from './components/api-account-flow';
 import { ThemeToggle } from './components/theme-toggle';
 import { UIButton } from './components/ui-button';
+import { defaultAppTargetActions, switchAppToAccount, switchAppToProvider } from './lib/app-target';
 import { formatError, relaySessionLabel, sessionDisplayName } from './lib/format';
 import { resolveAccountProvider } from './lib/provider-models';
 import { quotaRefreshProfileIds } from './lib/quota';
@@ -145,6 +146,7 @@ export function App() {
     login,
     saveAccountNote,
     saveAccountProxy,
+    appTarget,
   } = useAccountStore();
   const {
     sessions,
@@ -580,7 +582,18 @@ export function App() {
   async function handleSwitchAccount(account: CodexAccount) {
     if (authMode === 'pat') {
       try {
-        await api.switchToPatAccount(account.id);
+        const target = useAccountStore.getState().appTarget;
+        const connectionName =
+          providers.find((provider) => provider.id === target?.providerId)?.name ??
+          target?.providerId ??
+          '';
+        const switched = await switchAppToAccount(
+          target,
+          account,
+          connectionName,
+          defaultAppTargetActions(),
+        );
+        if (!switched) return;
         await refresh();
         refreshAccountQuota('main');
         useAppStore
@@ -589,7 +602,8 @@ export function App() {
         await api.restartChatgpt();
       } catch (err) {
         useAppStore.getState().setStatus('Failed to switch the Codex App account');
-        useAppStore.getState().setError(err instanceof Error ? err.message : String(err));
+        useAppStore.getState().setError(formatError(err));
+        void useAccountStore.getState().refreshAppTarget();
       }
     } else {
       login(account);
@@ -598,6 +612,28 @@ export function App() {
       } catch {
         // Non-critical: ChatGPT restart is best-effort
       }
+    }
+  }
+
+  async function handleAttachToCodexApp(account: CodexAccount) {
+    const binding = bindings.find((item) => item.profileId === account.id);
+    if (!binding) return;
+    const name =
+      providers.find((provider) => provider.id === binding.providerId)?.name ?? account.displayName;
+    try {
+      const switched = await switchAppToProvider(
+        useAccountStore.getState().appTarget,
+        { providerId: binding.providerId, model: binding.selectedModel, name },
+        defaultAppTargetActions(),
+      );
+      if (!switched) return;
+      await useAccountStore.getState().refreshAppTarget();
+      useAppStore.getState().setStatus(`Codex App now uses ${name}. Restarting ChatGPT…`);
+      await api.restartChatgpt();
+    } catch (err) {
+      useAppStore.getState().setStatus('Failed to connect the Codex App');
+      useAppStore.getState().setError(formatError(err));
+      void useAccountStore.getState().refreshAppTarget();
     }
   }
 
@@ -811,6 +847,8 @@ export function App() {
                 : login(account)
             }
             switchAccount={handleSwitchAccount}
+            attachToCodexApp={handleAttachToCodexApp}
+            appTarget={appTarget}
             exportCpa={exportCpa}
             openHandoff={(account) => openHandoffModal({ targetAccountId: account.id })}
             relayLatest={relayResumeTo}

@@ -45,9 +45,20 @@ PAT 模式下，概览与托盘显示 Codex App 当前用的帐号或连接；�
 - `App.handoff.test.tsx`、`tray-quota-panel.test.tsx`：目标展示、确认弹窗、External API 接管入口。
 - **RED**: 实现前编排模块不存在、界面无目标行与新入口。
 
+## Evidence（2026-11-10）
+
+- **RED**：`app-target.test.ts` 因模块不存在无法解析；界面用例 8 个失败（无目标行、无"Use in Codex App"、切换未先解除连接）。
+- **GREEN**：Gate 92 passed；全量 Vitest 322 passed；ESLint、`tsc --noEmit` 通过；改动文件 Prettier 通过。
+- **实现偏差**：
+  - 编排函数直接注入 `api` 的 Attach/Detach 函数，而不是 provider store 的方法，因为托盘窗口没有 provider store。确认弹窗沿用 `@tauri-apps/plugin-dialog`，失败时回退到 `window.confirm`。
+  - 托盘里 External API 行在 PAT 模式下用"Use in Codex App"替代原来禁用的 Switch 按钮。
+  - 主窗口里 App 当前接的连接对应的帐号，不再显示"已在使用"，可以直接切回。
+  - 既有用例"confirms before reset"改为断言 Tauri 确认弹窗（本节点 mock 了该插件）。
+- **Handoff**：APP-001-04 在真实 App 上验收三条路径：外部连接 → 帐号、帐号 → External API、自定义 `model_provider` 的禁用提示。
+
 ## Done
 
-- [ ] T01–T03 完成，Gate 通过，证据写入 execution-map。
+- [x] T01–T03 完成，Gate 通过，证据写入 execution-map。
 
 ## STOP conditions
 

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Profiler } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { confirm as dialogConfirm } from '@tauri-apps/plugin-dialog';
 import { App } from './App';
 import * as api from './lib/api';
 import { useAccountStore } from './stores/accounts';
@@ -21,6 +22,10 @@ const sessionItems = vi.fn<(accountId: string) => Promise<CodexSession[]>>();
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(() => Promise.resolve(vi.fn())),
+}));
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  confirm: vi.fn(async () => true),
 }));
 
 vi.mock('./lib/api', () => ({
@@ -50,6 +55,11 @@ vi.mock('./lib/api', () => ({
   openTerminalForLogin: vi.fn(),
   buildLoginCommand: vi.fn(),
   switchToPatAccount: vi.fn(),
+  getAppTarget: vi.fn(),
+  planAttachProviderV2: vi.fn(),
+  executeAttachProviderV2: vi.fn(),
+  planDetachProviderV2: vi.fn(),
+  executeDetachProviderV2: vi.fn(),
   restartChatgpt: vi.fn(),
   exportCpaCredentials: vi.fn(),
   updatePatSessionAuth: vi.fn(),
@@ -314,6 +324,12 @@ beforeEach(() => {
   vi.mocked(api.listProvidersV2).mockResolvedValue({ revision: 0, providers: [] });
   vi.mocked(api.listProfileProviderBindingsV2).mockResolvedValue([]);
   vi.mocked(api.listCachedQuotas).mockResolvedValue([]);
+  vi.mocked(api.getAppTarget).mockResolvedValue({
+    kind: 'account',
+    accountId: null,
+    providerId: null,
+  });
+  vi.mocked(dialogConfirm).mockResolvedValue(true);
 
   vi.mocked(api.getProfileQuota).mockResolvedValue({
     profileId: 'main',
@@ -943,6 +959,146 @@ describe('App handoff modal', () => {
     );
   });
 
+  describe('Codex App target in PAT mode', () => {
+    const attachedTarget = {
+      kind: 'provider' as const,
+      accountId: null,
+      providerId: 'account-codex-c',
+    };
+
+    beforeEach(() => {
+      vi.mocked(api.getAuthMode).mockResolvedValue('pat');
+      sessionItems.mockResolvedValue([]);
+      configureModelSwitch(externalApiProvider);
+      vi.mocked(api.planDetachProviderV2).mockResolvedValue({
+        planId: 'detach-1',
+        fingerprint: 'fp-d',
+        expiresAtMs: 1,
+        profileId: 'main',
+        expectedBindingStoreRevision: 1,
+        expectedBindingRevision: 1,
+        sourceConfigHash: 'hash',
+      });
+      vi.mocked(api.executeDetachProviderV2).mockResolvedValue({ state: 'committed' } as never);
+      vi.mocked(api.planAttachProviderV2).mockResolvedValue({
+        planId: 'attach-1',
+        fingerprint: 'fp-a',
+        blockers: [],
+      } as unknown as ProfileAttachPlanViewV2);
+      vi.mocked(api.executeAttachProviderV2).mockResolvedValue({ state: 'committed' } as never);
+    });
+
+    async function cardOf(name: string) {
+      return (await screen.findByText(name)).closest('article')!;
+    }
+
+    it('shows the External API connection the Codex App runs on', async () => {
+      vi.mocked(api.getAppTarget).mockResolvedValue(attachedTarget);
+
+      render(<App />);
+
+      expect((await screen.findByLabelText('Codex App target')).textContent).toBe(
+        'Codex App: codex-c API (External API)',
+      );
+    });
+
+    it('detaches the connection after confirmation, then switches and restarts', async () => {
+      vi.mocked(api.getAppTarget).mockResolvedValue(attachedTarget);
+      render(<App />);
+      await screen.findByLabelText('Codex App target');
+
+      fireEvent.click(
+        within(await cardOf('codex-luna002')).getByRole('button', {
+          name: /switch to this account/i,
+        }),
+      );
+
+      await waitFor(() => expect(api.restartChatgpt).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(dialogConfirm).mock.calls[0][0]).toMatch(/codex-c API.*read-only/s);
+      expect(api.planDetachProviderV2).toHaveBeenCalledWith('main');
+      expect(api.executeDetachProviderV2).toHaveBeenCalledWith({
+        planId: 'detach-1',
+        fingerprint: 'fp-d',
+      });
+      expect(api.switchToPatAccount).toHaveBeenCalledWith('codex-luna002');
+      expect(vi.mocked(api.executeDetachProviderV2).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(api.switchToPatAccount).mock.invocationCallOrder[0],
+      );
+    });
+
+    it('changes nothing when the detach confirmation is cancelled', async () => {
+      vi.mocked(api.getAppTarget).mockResolvedValue(attachedTarget);
+      vi.mocked(dialogConfirm).mockResolvedValue(false);
+      render(<App />);
+      await screen.findByLabelText('Codex App target');
+
+      fireEvent.click(
+        within(await cardOf('codex-luna002')).getByRole('button', {
+          name: /switch to this account/i,
+        }),
+      );
+
+      await waitFor(() => expect(dialogConfirm).toHaveBeenCalledTimes(1));
+      expect(api.planDetachProviderV2).not.toHaveBeenCalled();
+      expect(api.switchToPatAccount).not.toHaveBeenCalled();
+      expect(api.restartChatgpt).not.toHaveBeenCalled();
+    });
+
+    it('lets an External API account take over the Codex App', async () => {
+      render(<App />);
+
+      fireEvent.click(
+        await within(await cardOf('codex-c')).findByRole('button', { name: 'Use in Codex App' }),
+      );
+
+      await waitFor(() => expect(api.restartChatgpt).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(dialogConfirm).mock.calls[0][0]).toMatch(/read-only/);
+      expect(api.planAttachProviderV2).toHaveBeenCalledWith({
+        profileId: 'main',
+        providerId: 'account-codex-c',
+        selectedModel: 'gpt-5',
+      });
+      expect(api.executeAttachProviderV2).toHaveBeenCalledWith({
+        planId: 'attach-1',
+        fingerprint: 'fp-a',
+      });
+      expect(useAppStore.getState().status).toBe(
+        'Codex App now uses codex-c API. Restarting ChatGPT…',
+      );
+    });
+
+    it('marks the connection the Codex App already uses', async () => {
+      vi.mocked(api.getAppTarget).mockResolvedValue(attachedTarget);
+      render(<App />);
+
+      const inUse = await within(await cardOf('codex-c')).findByRole('button', {
+        name: 'Use in Codex App',
+      });
+      await waitFor(() => expect(inUse).toHaveProperty('disabled', true));
+      expect(inUse.textContent).toMatch(/in use/i);
+    });
+
+    it('explains a hand-written provider instead of switching', async () => {
+      vi.mocked(api.getAppTarget).mockResolvedValue({
+        kind: 'customProvider',
+        accountId: null,
+        providerId: 'my-proxy',
+      });
+      render(<App />);
+      await waitFor(() =>
+        expect(screen.getByLabelText('Codex App target').textContent).toBe(
+          'Codex App: my-proxy (config.toml)',
+        ),
+      );
+
+      const switchButton = within(await cardOf('codex-luna002')).getByRole('button', {
+        name: /switch to this account/i,
+      });
+      expect(switchButton).toHaveProperty('disabled', true);
+      expect(switchButton.getAttribute('title')).toMatch(/config\.toml/);
+    });
+  });
+
   it('refreshes main quota after PAT switch copies auth into main', async () => {
     const refreshAccountQuota = vi.fn();
     useQuotaStore.setState({ refreshAccountQuota });
@@ -1157,7 +1313,6 @@ describe('App handoff modal', () => {
         account.id === 'codex-c' ? { ...account, isActiveAuth: true } : account,
       ),
     );
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     useQuotaStore.setState({
       quotas: [
@@ -1202,7 +1357,7 @@ describe('App handoff modal', () => {
 
     fireEvent.click(within(accountCard!).getByRole('button', { name: /reset codex-c quota/i }));
 
-    await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
+    await waitFor(() => expect(dialogConfirm).toHaveBeenCalled());
     await waitFor(() => expect(api.resetProfileQuota).toHaveBeenCalledWith('codex-c'));
   });
 

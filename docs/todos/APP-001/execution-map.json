@@ -175,7 +175,7 @@
       "maturity": "DECOMPOSED",
       "elaboration_blockers": [],
       "readiness": "READY",
-      "status": "待执行",
+      "status": "验证成功",
       "depends_on": ["APP-001-03", "APP-001-05"],
       "blockers": [],
       "consumes": ["artifact:pat-switch-ui", "artifact:app-target"],
@@ -189,7 +189,14 @@
       "integration_gates": [
         "npm test -- src/App.handoff.test.tsx src/components/tray-quota-panel.test.tsx src/lib/app-target.test.ts"
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "command": "npm test -- src/App.handoff.test.tsx src/components/tray-quota-panel.test.tsx src/lib/app-target.test.ts",
+          "result": "PASS",
+          "scope": "local",
+          "verified_at": "2026-11-10T13:56:00+08:00"
+        }
+      ]
     },
     {
       "id": "APP-001-04",
@@ -203,7 +210,7 @@
       "todo": "APP-001-04-acceptance-docs.md",
       "maturity": "DECOMPOSED",
       "elaboration_blockers": [],
-      "readiness": "BLOCKED",
+      "readiness": "READY",
       "status": "待执行",
       "depends_on": ["APP-001-02", "APP-001-06"],
       "blockers": [],
