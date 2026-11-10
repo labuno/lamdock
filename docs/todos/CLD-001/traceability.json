@@ -1,0 +1,1524 @@
+{
+  "schema_version": 1,
+  "plan_id": "CLD-001",
+  "source_documents": [
+    {
+      "id": "primary-plan",
+      "path": "docs/CLD-001-claude-agent-support-plan.md",
+      "sha256": "ee46f48d077c678ba3911b302f31a6ff208ff293565d73939f10fd1d53894d8d",
+      "role": "primary"
+    }
+  ],
+  "review_dimensions": [
+    {
+      "id": "objective",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-OBJ-01",
+        "REQ-OBJ-02",
+        "REQ-OBJ-03",
+        "REQ-OBJ-04",
+        "REQ-OBJ-05"
+      ],
+      "rationale": "objective obligations extracted as atomic requirements and mapped to execution nodes."
+    },
+    {
+      "id": "scope",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-SCP-01",
+        "REQ-SCP-02",
+        "REQ-SCP-03",
+        "REQ-SCP-04",
+        "REQ-SCP-05",
+        "REQ-SCP-06",
+        "REQ-SCP-07",
+        "REQ-SCP-08",
+        "REQ-SCP-09",
+        "REQ-SCP-10",
+        "REQ-SCP-11",
+        "REQ-SCP-12",
+        "REQ-SCP-13"
+      ],
+      "rationale": "scope obligations extracted as atomic requirements and mapped to execution nodes."
+    },
+    {
+      "id": "steps",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-STP-01",
+        "REQ-STP-02",
+        "REQ-STP-03",
+        "REQ-STP-04",
+        "REQ-STP-05",
+        "REQ-STP-06",
+        "REQ-STP-07",
+        "REQ-STP-08"
+      ],
+      "rationale": "steps obligations extracted as atomic requirements and mapped to execution nodes."
+    },
+    {
+      "id": "interfaces",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-IF-01",
+        "REQ-IF-02",
+        "REQ-IF-03",
+        "REQ-IF-04",
+        "REQ-IF-05",
+        "REQ-IF-06",
+        "REQ-IF-07",
+        "REQ-IF-08",
+        "REQ-IF-09",
+        "REQ-IF-10",
+        "REQ-IF-11",
+        "REQ-IF-12",
+        "REQ-IF-13",
+        "REQ-IF-14",
+        "REQ-IF-15",
+        "REQ-IF-16",
+        "REQ-IF-17",
+        "REQ-IF-18",
+        "REQ-IF-19",
+        "REQ-IF-20",
+        "REQ-IF-21",
+        "REQ-IF-22",
+        "REQ-IF-23",
+        "REQ-IF-24",
+        "REQ-IF-34",
+        "REQ-IF-35",
+        "REQ-IF-36",
+        "REQ-IF-37",
+        "REQ-IF-38",
+        "REQ-IF-39",
+        "REQ-IF-40",
+        "REQ-IF-41",
+        "REQ-IF-42",
+        "REQ-IF-43",
+        "REQ-IF-44"
+      ],
+      "rationale": "interfaces obligations extracted as atomic requirements and mapped to execution nodes."
+    },
+    {
+      "id": "work_packages",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-WP-A",
+        "REQ-WP-B",
+        "REQ-WP-C",
+        "REQ-WP-D",
+        "REQ-WP-E",
+        "REQ-WP-F",
+        "REQ-WP-G"
+      ],
+      "rationale": "work_packages obligations extracted as atomic requirements and mapped to execution nodes."
+    },
+    {
+      "id": "test_matrix",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-TM-01",
+        "REQ-TM-02",
+        "REQ-TM-03",
+        "REQ-TM-04",
+        "REQ-TM-05",
+        "REQ-TM-06",
+        "REQ-TM-07",
+        "REQ-TM-08"
+      ],
+      "rationale": "test_matrix obligations extracted as atomic requirements and mapped to execution nodes."
+    },
+    {
+      "id": "verification",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-VER-01",
+        "REQ-VER-02",
+        "REQ-VER-03",
+        "REQ-VER-04",
+        "REQ-VER-05"
+      ],
+      "rationale": "verification obligations extracted as atomic requirements and mapped to execution nodes."
+    },
+    {
+      "id": "done_criteria",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-DONE-01",
+        "REQ-DONE-02",
+        "REQ-DONE-03",
+        "REQ-DONE-04",
+        "REQ-DONE-05"
+      ],
+      "rationale": "done_criteria obligations extracted as atomic requirements and mapped to execution nodes."
+    },
+    {
+      "id": "stop_conditions",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-STOP-01",
+        "REQ-STOP-02",
+        "REQ-STOP-03",
+        "REQ-STOP-04",
+        "REQ-STOP-05"
+      ],
+      "rationale": "stop_conditions obligations extracted as atomic requirements and mapped to execution nodes."
+    },
+    {
+      "id": "external_sources",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-EXT-01",
+        "REQ-EXT-02",
+        "REQ-EXT-03",
+        "REQ-EXT-04",
+        "REQ-EXT-05",
+        "REQ-EXT-06",
+        "REQ-EXT-07",
+        "REQ-EXT-08"
+      ],
+      "rationale": "external_sources obligations extracted as atomic requirements and mapped to execution nodes."
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-OBJ-01",
+      "kind": "objective",
+      "source_document": "primary-plan",
+      "source_section": "## 1. Objective（目标）",
+      "source_quote": "在 LAM 中把 Claude Code 支持为一等 agent，与 Codex 同形提供账号空间、auth 登录、external API 接入、会话与额度能力。",
+      "statement": "Provide Claude Code as a first-class agent with Codex-parity spaces, auth, external API, sessions and quota.",
+      "verification": "节点 CLD-001-01/12/14 的契约与验收",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-12",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-OBJ-02",
+      "kind": "objective",
+      "source_document": "primary-plan",
+      "source_section": "## 1. Objective（目标）",
+      "source_quote": "每个 Claude 空间都能通过生成的 wrapper 命令直接启动 Claude Code，命令形态与 `codex-<name>` 对称，用户不需要手工设置环境变量。",
+      "statement": "Every Claude space launches through a generated wrapper without manual env setup.",
+      "verification": "节点 CLD-001-03 wrapper 测试与 CLD-001-12 交互测试",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-12"
+      ]
+    },
+    {
+      "id": "REQ-OBJ-03",
+      "kind": "objective",
+      "source_document": "primary-plan",
+      "source_section": "## 1. Objective（目标）",
+      "source_quote": "所有 Claude 能力必须以增量方式加入，Codex 现有命令、缓存、配置投影与 wrapper 输出保持兼容，`make check` 是每个节点的公共回归 Gate。",
+      "statement": "Claude work is additive; Codex behavior and outputs stay compatible under `make check`.",
+      "verification": "节点 CLD-001-02 与 CLD-001-14 的兼容性 Gate",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-02",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-OBJ-04",
+      "kind": "objective",
+      "source_document": "primary-plan",
+      "source_section": "## 1. Objective（目标）",
+      "source_quote": "延续 LAM 的零泄漏原则：凭据不复制、不落明文；默认空间 `~/.claude` 默认只读，任何写入都必须是用户显式触发、可备份、可还原的受管投影。",
+      "statement": "Zero-leakage: no credential copies or plaintext, default space read-only, writes are explicit managed projections.",
+      "verification": "节点 CLD-001-04/05/10 的安全用例与投影回滚测试",
+      "node_ids": [
+        "CLD-001-04",
+        "CLD-001-05",
+        "CLD-001-10"
+      ]
+    },
+    {
+      "id": "REQ-SCP-01",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.1 In Scope（本次交付）",
+      "source_quote": "识别默认空间 `~/.claude`（profile id 为 `main`）与受管空间 `~/.claude-<name>`（profile id 为 `<name>`），支持创建、重命名、删除与 wrapper 生成。",
+      "statement": "Discover default and managed Claude spaces with create/rename/delete/wrapper support.",
+      "verification": "节点 CLD-001-03 空间生命周期测试",
+      "node_ids": [
+        "CLD-001-03"
+      ]
+    },
+    {
+      "id": "REQ-SCP-02",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.1 In Scope（本次交付）",
+      "source_quote": "支持在外部终端完成 Claude Code 的 auth 登录（含全新空间首次登录），支持探测登录状态、凭据位置与过期时间，支持用户显式导入凭据 JSON 以生成受管空间。",
+      "statement": "Terminal auth login plus credential probing and explicit import.",
+      "verification": "节点 CLD-001-04 登录与凭据探测测试",
+      "node_ids": [
+        "CLD-001-04"
+      ]
+    },
+    {
+      "id": "REQ-SCP-03",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.1 In Scope（本次交付）",
+      "source_quote": "支持在 Provider Hub 中新增 Anthropic Messages 协议的上游，并把 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、模型映射等键以受管投影方式写入目标空间的 `settings.json`。",
+      "statement": "Add Anthropic Messages providers and project env keys into settings.json.",
+      "verification": "节点 CLD-001-05/06 投影与编排测试",
+      "node_ids": [
+        "CLD-001-05",
+        "CLD-001-06"
+      ]
+    },
+    {
+      "id": "REQ-SCP-04",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.1 In Scope（本次交付）",
+      "source_quote": "支持把 OpenAI Chat Completions 上游通过本地网关暴露为 Anthropic Messages 协议，让 Claude Code 以 `ANTHROPIC_BASE_URL` 指向回环地址的方式直接使用。",
+      "statement": "Expose Chat Completions upstreams through the local gateway as Anthropic Messages.",
+      "verification": "节点 CLD-001-07/08 网关测试与端到端证据",
+      "node_ids": [
+        "CLD-001-07",
+        "CLD-001-08"
+      ]
+    },
+    {
+      "id": "REQ-SCP-05",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.1 In Scope（本次交付）",
+      "source_quote": "支持列出、查询、删除 Claude 会话，支持生成 resume 命令并在终端恢复，支持把单条 Claude 会话接力到另一个空间。",
+      "statement": "List/query/delete Claude sessions, generate resume commands, relay one session to another space.",
+      "verification": "节点 CLD-001-09/10 会话与接力测试",
+      "node_ids": [
+        "CLD-001-09",
+        "CLD-001-10"
+      ]
+    },
+    {
+      "id": "REQ-SCP-06",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.1 In Scope（本次交付）",
+      "source_quote": "支持把 Claude 会话 JSONL 的 token 活动写入 LAM 本地用量只读模型，支持采集 Claude 订阅额度快照并在托盘与界面展示。",
+      "statement": "Ingest Claude JSONL token activity into the local read model and collect quota snapshots.",
+      "verification": "节点 CLD-001-11 用量与额度测试",
+      "node_ids": [
+        "CLD-001-11",
+        "CLD-001-13"
+      ]
+    },
+    {
+      "id": "REQ-SCP-07",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.1 In Scope（本次交付）",
+      "source_quote": "支持在桌面应用中按 agent 切换账号/会话/用量视图，支持在 Provider 界面编辑 Anthropic Messages 协议与模型映射，并更新命令契约文档与 README。",
+      "statement": "Agent switching UI, provider editing for the new protocol, and updated contracts/docs.",
+      "verification": "节点 CLD-001-12/13/14 的 UI 与文档验收",
+      "node_ids": [
+        "CLD-001-12",
+        "CLD-001-13",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-SCP-08",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.2 Non-Goals（本次不做）",
+      "source_quote": "LAM 不内置、不补丁、不替换 Claude Code 二进制，只通过 `CLAUDE_CONFIG_DIR`、wrapper 与配置文件契约驱动官方 CLI。",
+      "statement": "Do not embed or patch the Claude Code binary; drive it only via config contracts.",
+      "verification": "节点 CLD-001-03 的 wrapper 与路径测试",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-04"
+      ]
+    },
+    {
+      "id": "REQ-SCP-09",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.2 Non-Goals（本次不做）",
+      "source_quote": "不逆向 Claude 的 OAuth 端点、客户端 ID 或私有接口来替用户登录；登录必须在 Claude Code 官方 CLI 流程内完成。",
+      "statement": "No reverse-engineered OAuth; login stays inside the official CLI flow.",
+      "verification": "节点 CLD-001-04 的登录入口测试与设计约束",
+      "node_ids": [
+        "CLD-001-04"
+      ]
+    },
+    {
+      "id": "REQ-SCP-10",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.2 Non-Goals（本次不做）",
+      "source_quote": "本次不把 Claude 用量写入 Codex 的 `usage.sqlite3`，不改动 Codex 用量聚合逻辑；Claude 使用独立数据库与独立查询服务。",
+      "statement": "Do not merge Claude usage into the Codex usage database.",
+      "verification": "节点 CLD-001-11 存储路径测试与 CLD-001-14 兼容性检查",
+      "node_ids": [
+        "CLD-001-11",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-SCP-11",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.2 Non-Goals（本次不做）",
+      "source_quote": "任何空间创建、接力、导入流程都不得复制 `.credentials.json`、Keychain 条目或 `~/.claude.json` 中的账号信息。",
+      "statement": "No flow may copy credentials files, keychain entries or account info from `.claude.json`.",
+      "verification": "节点 CLD-001-03/04/10 的负向安全用例",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-04",
+        "CLD-001-10"
+      ]
+    },
+    {
+      "id": "REQ-SCP-12",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.2 Non-Goals（本次不做）",
+      "source_quote": "本次只覆盖 Claude Code CLI，不覆盖 Claude 桌面应用的实例管理与桌面网关。",
+      "statement": "Scope limited to Claude Code CLI, not the desktop app.",
+      "verification": "节点 CLD-001-01 能力声明与 CLD-001-14 范围检查",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-SCP-13",
+      "kind": "scope",
+      "source_document": "primary-plan",
+      "source_section": "### 2.2 Non-Goals（本次不做）",
+      "source_quote": "与现状一致，仅支持 macOS。",
+      "statement": "macOS only, consistent with the current product.",
+      "verification": "节点 CLD-001-14 发布 Gate 的平台检查",
+      "node_ids": [
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-STP-01",
+      "kind": "steps",
+      "source_document": "primary-plan",
+      "source_section": "## 3. Steps（实施步骤）",
+      "source_quote": "波次按 A→B/C→D→E/F→G 推进，后一波次节点在前置节点 `验证成功` 前保持 `BLOCKED`。",
+      "statement": "Waves proceed A→B/C→D→E/F→G with blocked successors until predecessors verify.",
+      "verification": "执行图依赖与 readiness 校验",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-02",
+        "CLD-001-03",
+        "CLD-001-04",
+        "CLD-001-05",
+        "CLD-001-06",
+        "CLD-001-07",
+        "CLD-001-08",
+        "CLD-001-09",
+        "CLD-001-10",
+        "CLD-001-11",
+        "CLD-001-12",
+        "CLD-001-13",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-STP-02",
+      "kind": "steps",
+      "source_document": "primary-plan",
+      "source_section": "## 3. Steps（实施步骤）",
+      "source_quote": "每个行为任务先写测试并观察 RED，再实现到 GREEN，禁止跳过 RED 证据；RED 与 GREEN 是每个任务的完成方式，不作为独立任务拆分。",
+      "statement": "Red-first inside each behavior task; no separate test/implement/regression tasks.",
+      "verification": "每个节点 todo 的 Test and RED 字段与证据",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-02",
+        "CLD-001-03",
+        "CLD-001-04",
+        "CLD-001-05",
+        "CLD-001-06",
+        "CLD-001-07",
+        "CLD-001-08",
+        "CLD-001-09",
+        "CLD-001-10",
+        "CLD-001-11",
+        "CLD-001-12",
+        "CLD-001-13",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-STP-03",
+      "kind": "steps",
+      "source_document": "primary-plan",
+      "source_section": "## 3. Steps（实施步骤）",
+      "source_quote": "先完成 agent 领域模型（CLD-001-01）与多 agent 存储布局（CLD-001-02），建立 Codex 零回归基线。",
+      "statement": "Wave A founds the agent model and storage baseline.",
+      "verification": "节点 CLD-001-01/02 的 Gate",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-02"
+      ]
+    },
+    {
+      "id": "REQ-STP-04",
+      "kind": "steps",
+      "source_document": "primary-plan",
+      "source_section": "## 3. Steps（实施步骤）",
+      "source_quote": "Claude 空间生命周期（CLD-001-03）与登录/凭据探测（CLD-001-04），使账号卡片与 wrapper 可用。",
+      "statement": "Wave B delivers space lifecycle and auth.",
+      "verification": "节点 CLD-001-03/04 的 Gate",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-04"
+      ]
+    },
+    {
+      "id": "REQ-STP-05",
+      "kind": "steps",
+      "source_document": "primary-plan",
+      "source_section": "## 3. Steps（实施步骤）",
+      "source_quote": "Provider 协议扩展与 `settings.json` 受管投影（CLD-001-05）、API 账号编排（CLD-001-06），打通 Anthropic 兼容上游。",
+      "statement": "Wave C delivers protocol extension and managed projection.",
+      "verification": "节点 CLD-001-05/06 的 Gate",
+      "node_ids": [
+        "CLD-001-05",
+        "CLD-001-06"
+      ]
+    },
+    {
+      "id": "REQ-STP-06",
+      "kind": "steps",
+      "source_document": "primary-plan",
+      "source_section": "## 3. Steps（实施步骤）",
+      "source_quote": "Anthropic Messages 网关入站与适配（CLD-001-07）、网关绑定与启动链路（CLD-001-08），打通 Chat Completions 上游。",
+      "statement": "Wave D delivers the Anthropic Messages gateway path.",
+      "verification": "节点 CLD-001-07/08 的 Gate",
+      "node_ids": [
+        "CLD-001-07",
+        "CLD-001-08"
+      ]
+    },
+    {
+      "id": "REQ-STP-07",
+      "kind": "steps",
+      "source_document": "primary-plan",
+      "source_section": "## 3. Steps（实施步骤）",
+      "source_quote": "会话索引与删除（CLD-001-09）、resume 与跨空间接力（CLD-001-10）。",
+      "statement": "Wave E delivers the session index and handoff.",
+      "verification": "节点 CLD-001-09/10 的 Gate",
+      "node_ids": [
+        "CLD-001-09",
+        "CLD-001-10"
+      ]
+    },
+    {
+      "id": "REQ-STP-08",
+      "kind": "steps",
+      "source_document": "primary-plan",
+      "source_section": "## 3. Steps（实施步骤）",
+      "source_quote": "账号与 agent 切换 UI（CLD-001-12）、会话与用量 UI（CLD-001-13）、命令契约/文档/发布验收（CLD-001-14）。",
+      "statement": "Wave G delivers UI and release acceptance.",
+      "verification": "节点 CLD-001-12/13/14 的 Gate",
+      "node_ids": [
+        "CLD-001-12",
+        "CLD-001-13",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-IF-01",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.1 Agent 领域接口",
+      "source_quote": "新增 `AgentId`、`AgentProfile` 与 `AgentCapabilities`，Codex 通过适配器实现同一投影，不改变既有 `CodexAccount` 字段与序列化。",
+      "statement": "Introduce AgentId/AgentProfile/AgentCapabilities while keeping CodexAccount serialization unchanged.",
+      "verification": "节点 CLD-001-01 的类型与序列化测试",
+      "node_ids": [
+        "CLD-001-01"
+      ]
+    },
+    {
+      "id": "REQ-IF-02",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.1 Agent 领域接口",
+      "source_quote": "注册表按 agent 分派：列表、查找、wrapper 生成、登录命令必须经由注册表，禁止在上层直接匹配目录名。",
+      "statement": "Registry dispatches all profile operations by agent id.",
+      "verification": "节点 CLD-001-01 分派测试与 CLD-001-03 集成使用",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-03"
+      ]
+    },
+    {
+      "id": "REQ-IF-03",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.2 空间与文件契约",
+      "source_quote": "profile id 为 `main` 时空间目录是 `~/.claude`，其它 id 为 `~/.claude-<name>`；`main` 不生成 wrapper，其余空间生成 `claude-<name>` wrapper。",
+      "statement": "Space path and wrapper naming contract for Claude profiles.",
+      "verification": "节点 CLD-001-03 路径与 wrapper 测试",
+      "node_ids": [
+        "CLD-001-03"
+      ]
+    },
+    {
+      "id": "REQ-IF-04",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.2 空间与文件契约",
+      "source_quote": "wrapper 脚本必须导出 `CLAUDE_CONFIG_DIR` 并在缺少 `claude` 时给出可操作的错误信息；二进制解析顺序是 `CLAUDE_BIN` 环境变量、登录 shell PATH 中的 `claude`。",
+      "statement": "Wrapper exports CLAUDE_CONFIG_DIR and resolves the binary with actionable errors.",
+      "verification": "节点 CLD-001-03 wrapper 脚本测试",
+      "node_ids": [
+        "CLD-001-03"
+      ]
+    },
+    {
+      "id": "REQ-IF-05",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.2 空间与文件契约",
+      "source_quote": "LAM 在每个受管空间写入 marker `.managed-by-lam.json`，记录 `agentId`、`profileId`、`homePath`、`wrapperPath`、`createdAt`。",
+      "statement": "Managed spaces carry a LAM marker with agent identity fields.",
+      "verification": "节点 CLD-001-02 marker 读写测试与 CLD-001-03 创建/删除测试",
+      "node_ids": [
+        "CLD-001-02",
+        "CLD-001-03"
+      ]
+    },
+    {
+      "id": "REQ-IF-06",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.3 认证接口",
+      "source_quote": "登录入口必须打开用户配置的终端目标并执行带 `CLAUDE_CONFIG_DIR` 的 `claude` 命令，由用户在官方 CLI 内完成 `/login`；LAM 不读取、不转发、不存储登录过程中的浏览器凭据。",
+      "statement": "Login opens a terminal with CLAUDE_CONFIG_DIR and never touches browser credentials.",
+      "verification": "节点 CLD-001-04 登录入口测试",
+      "node_ids": [
+        "CLD-001-04"
+      ]
+    },
+    {
+      "id": "REQ-IF-07",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.3 认证接口",
+      "source_quote": "Keychain service 名按 Claude Code 的命名规则推导：默认空间使用无后缀名，非默认空间使用带目录指纹后缀的名字；该规则是待实测假设，必须通过探针测试锁定",
+      "statement": "Keychain service name derivation is a probed assumption with safe fallback.",
+      "verification": "节点 CLD-001-04 探针测试与回退用例",
+      "node_ids": [
+        "CLD-001-04"
+      ]
+    },
+    {
+      "id": "REQ-IF-08",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.4 Provider 与投影接口",
+      "source_quote": "`ProviderProtocol` 新增 `anthropic_messages`；`responses` 与 `chat_completions` 的既有序列化保持不变。",
+      "statement": "Add the anthropic_messages protocol without changing existing serializations.",
+      "verification": "节点 CLD-001-05 协议兼容测试",
+      "node_ids": [
+        "CLD-001-05"
+      ]
+    },
+    {
+      "id": "REQ-IF-09",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.4 Provider 与投影接口",
+      "source_quote": "投影必须沿用 Codex 的受管语义：写入前备份原文件、在绑定记录里保存 `beforeHash`、`appliedHash`、`previousValues` 与 `managedValues`，detach 时逐键校验所有权后还原。",
+      "statement": "Managed projection semantics: backup, hashes, previous values, verified detach.",
+      "verification": "节点 CLD-001-05 投影测试与 CLD-001-06 detach 测试",
+      "node_ids": [
+        "CLD-001-05",
+        "CLD-001-06"
+      ]
+    },
+    {
+      "id": "REQ-IF-10",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.4 Provider 与投影接口",
+      "source_quote": "密钥合同：`settings.json` 不落明文密钥；token 通过 Keychain 引用 + `lam-auth-helper` 在 wrapper 启动时注入，helper 参数至少包含状态根目录、profile id 与凭据引用。",
+      "statement": "Secrets stay in Keychain and are injected by lam-auth-helper at launch.",
+      "verification": "节点 CLD-001-05 投影安全测试、CLD-001-06 编排测试与 CLD-001-08 启动测试",
+      "node_ids": [
+        "CLD-001-05",
+        "CLD-001-06",
+        "CLD-001-08"
+      ]
+    },
+    {
+      "id": "REQ-IF-11",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.4 Provider 与投影接口",
+      "source_quote": "模型映射必须总是写入一个可用的小模型（HAIKU 等价）与默认模型，否则 Claude Code 的后台任务会因模型不存在而报错。",
+      "statement": "Always project a small-model mapping and default model.",
+      "verification": "节点 CLD-001-05 模型映射测试与 CLD-001-06 计划阻断器",
+      "node_ids": [
+        "CLD-001-05",
+        "CLD-001-06"
+      ]
+    },
+    {
+      "id": "REQ-IF-12",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.5 网关接口",
+      "source_quote": "网关新增入站路由 `POST /v1/messages`，并实现 `POST /v1/messages/count_tokens`；错误响应使用 Anthropic 错误信封 `{\"type\":\"error\",\"error\":{\"type\":...,\"message\":...}}`。",
+      "statement": "Gateway serves /v1/messages and /v1/messages/count_tokens with Anthropic error envelopes.",
+      "verification": "节点 CLD-001-07 路由与错误契约测试",
+      "node_ids": [
+        "CLD-001-07"
+      ]
+    },
+    {
+      "id": "REQ-IF-13",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.5 网关接口",
+      "source_quote": "流式响应必须产生 Anthropic SSE 事件序列：`message_start`、`content_block_start`、`content_block_delta`、`content_block_stop`、`message_delta`、`message_stop`，并按需要发送 `ping`。",
+      "statement": "Streaming emits the Anthropic SSE event sequence.",
+      "verification": "节点 CLD-001-07 SSE 序列测试",
+      "node_ids": [
+        "CLD-001-07"
+      ]
+    },
+    {
+      "id": "REQ-IF-14",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.5 网关接口",
+      "source_quote": "适配器 `messages_to_chat_completions` 负责把 Anthropic 请求映射为 Chat Completions 请求并反向映射响应，覆盖系统提示、工具定义、工具调用与工具结果、停止原因、usage 与错误映射。",
+      "statement": "Adapter covers system prompts, tools, tool results, stop reasons, usage and errors.",
+      "verification": "节点 CLD-001-07 适配器测试",
+      "node_ids": [
+        "CLD-001-07"
+      ]
+    },
+    {
+      "id": "REQ-IF-15",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.5 网关接口",
+      "source_quote": "绑定记录新增 `agentId` 与入站协议字段；Claude 网关路径的本地基址是 `http://127.0.0.1:<port>`，鉴权 token 由 wrapper 从 Keychain 注入的 `ANTHROPIC_AUTH_TOKEN` 提供。",
+      "statement": "Binding carries agent id and inbound protocol; Claude base URL is loopback with injected token.",
+      "verification": "节点 CLD-001-08 绑定与启动测试",
+      "node_ids": [
+        "CLD-001-08"
+      ]
+    },
+    {
+      "id": "REQ-IF-16",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.6 会话接口",
+      "source_quote": "Claude 会话文件位于 `<config_dir>/projects/<cwd-slug>/<session-uuid>.jsonl`，会话 id 是文件名的 UUID，工作目录从 JSONL 记录中还原。",
+      "statement": "Session file layout and id contract.",
+      "verification": "节点 CLD-001-09 索引解析测试",
+      "node_ids": [
+        "CLD-001-09"
+      ]
+    },
+    {
+      "id": "REQ-IF-17",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.6 会话接口",
+      "source_quote": "resume 命令形态为 `cd '<cwd>' && CLAUDE_CONFIG_DIR='<home>' claude --resume '<session-id>'`，cwd 缺失时退化为不切换目录并在预览中给出警告。",
+      "statement": "Resume command shape with degraded cwd handling.",
+      "verification": "节点 CLD-001-10 命令构建测试",
+      "node_ids": [
+        "CLD-001-10"
+      ]
+    },
+    {
+      "id": "REQ-IF-18",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.6 会话接口",
+      "source_quote": "跨空间接力只复制会话 JSONL 到目标空间的对应 slug 目录；禁止复制 `.credentials.json`、Keychain 条目与 `~/.claude.json`。",
+      "statement": "Relay copies session JSONL only and never credentials.",
+      "verification": "节点 CLD-001-10 接力负向测试",
+      "node_ids": [
+        "CLD-001-10"
+      ]
+    },
+    {
+      "id": "REQ-IF-19",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.6 会话接口",
+      "source_quote": "会话删除沿用 Codex 的暂存删除策略（先移动到 LAM 暂存目录再清理），并同步清理该会话在 Claude 用量库中的行。",
+      "statement": "Deletion uses staged removal and cleans usage rows.",
+      "verification": "节点 CLD-001-09 删除测试与 CLD-001-11 清理测试",
+      "node_ids": [
+        "CLD-001-09",
+        "CLD-001-11"
+      ]
+    },
+    {
+      "id": "REQ-IF-20",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.7 用量与额度接口",
+      "source_quote": "Claude 用量写入独立数据库 `~/.lam/usage/claude-usage.sqlite3`，记录 `agent_id=claude_code` 维度的 calls 与 threads，不改动 Codex 用量库。",
+      "statement": "Claude usage uses a separate database and never touches the Codex one.",
+      "verification": "节点 CLD-001-11 schema 与路径测试",
+      "node_ids": [
+        "CLD-001-11"
+      ]
+    },
+    {
+      "id": "REQ-IF-21",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.7 用量与额度接口",
+      "source_quote": "额度采集默认关闭，作为实验性高级选项显式启用；启用后通过带 Bearer token 的 OAuth usage 接口读取 5 小时与 7 天窗口，输出复用 `UsageQuotaSnapshot` 形状。",
+      "statement": "Quota collection is opt-in, reads 5h/7d windows, reuses the snapshot shape.",
+      "verification": "节点 CLD-001-11 额度测试",
+      "node_ids": [
+        "CLD-001-11"
+      ]
+    },
+    {
+      "id": "REQ-IF-22",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.7 用量与额度接口",
+      "source_quote": "采集失败必须降级：`source=unavailable` 或 `source=stale_cache`，界面展示原因，且绝不把本地估算伪装成实时剩余额度。",
+      "statement": "Failures degrade explicitly and never fake live quota.",
+      "verification": "节点 CLD-001-11 降级测试与 CLD-001-13 展示测试",
+      "node_ids": [
+        "CLD-001-11",
+        "CLD-001-13"
+      ]
+    },
+    {
+      "id": "REQ-IF-23",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.8 命令与前端接口",
+      "source_quote": "前端 `types.ts` 新增 `AgentProfile`、`ClaudeAccount`、`ClaudeSession`、`ClaudeUsage*` 类型；`api.ts` 为每个新命令提供薄封装。",
+      "statement": "Frontend mirrors Rust DTOs and wraps new commands.",
+      "verification": "节点 CLD-001-12/13 的类型与封装测试",
+      "node_ids": [
+        "CLD-001-12",
+        "CLD-001-13"
+      ]
+    },
+    {
+      "id": "REQ-IF-24",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.8 命令与前端接口",
+      "source_quote": "敏感值禁止进入前端状态与日志：界面只展示是否存在凭据、过期时间与来源，不展示 token 原文。",
+      "statement": "Secrets never reach frontend state or logs.",
+      "verification": "节点 CLD-001-04 元数据测试与 CLD-001-12 展示测试",
+      "node_ids": [
+        "CLD-001-04",
+        "CLD-001-12"
+      ]
+    },
+    {
+      "id": "REQ-WP-A",
+      "kind": "work_packages",
+      "source_document": "primary-plan",
+      "source_section": "### 5.1 CLD-001A 领域模型与存储基线",
+      "source_quote": "交付 agent 注册表、`AgentProfile` 投影、按 agent 分区的 LAM 存储路径与 Codex 零回归基线。",
+      "statement": "WP A delivers agent registry, profile projection, per-agent storage and the zero-regression baseline.",
+      "verification": "节点 CLD-001-01/02 的 Gate",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-02"
+      ]
+    },
+    {
+      "id": "REQ-WP-B",
+      "kind": "work_packages",
+      "source_document": "primary-plan",
+      "source_section": "### 5.2 CLD-001B Claude 空间与认证",
+      "source_quote": "交付 Claude 空间发现/创建/重命名/删除、wrapper 生成、终端登录入口与凭据探测。",
+      "statement": "WP B delivers Claude space lifecycle, wrapper, terminal login and credential probing.",
+      "verification": "节点 CLD-001-03/04 的 Gate",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-04"
+      ]
+    },
+    {
+      "id": "REQ-WP-C",
+      "kind": "work_packages",
+      "source_document": "primary-plan",
+      "source_section": "### 5.3 CLD-001C External API 直连接入",
+      "source_quote": "交付 `anthropic_messages` 协议、`settings.json` 受管投影与 API 账号编排（规划、执行、分离、轮换）。",
+      "statement": "WP C delivers the protocol, managed settings projection and API account orchestration.",
+      "verification": "节点 CLD-001-05/06 的 Gate",
+      "node_ids": [
+        "CLD-001-05",
+        "CLD-001-06"
+      ]
+    },
+    {
+      "id": "REQ-WP-D",
+      "kind": "work_packages",
+      "source_document": "primary-plan",
+      "source_section": "### 5.4 CLD-001D 本地网关（Anthropic Messages）",
+      "source_quote": "交付 Anthropic Messages 网关入站、`messages_to_chat_completions` 适配、网关绑定与启动链路。",
+      "statement": "WP D delivers the Anthropic Messages gateway route, adapter, binding and launch path.",
+      "verification": "节点 CLD-001-07/08 的 Gate",
+      "node_ids": [
+        "CLD-001-07",
+        "CLD-001-08"
+      ]
+    },
+    {
+      "id": "REQ-WP-E",
+      "kind": "work_packages",
+      "source_document": "primary-plan",
+      "source_section": "### 5.5 CLD-001E Claude 会话",
+      "source_quote": "交付 Claude 会话索引、查询、删除、resume 命令与跨空间接力。",
+      "statement": "WP E delivers the session index, deletion, resume and cross-space handoff.",
+      "verification": "节点 CLD-001-09/10 的 Gate",
+      "node_ids": [
+        "CLD-001-09",
+        "CLD-001-10"
+      ]
+    },
+    {
+      "id": "REQ-WP-F",
+      "kind": "work_packages",
+      "source_document": "primary-plan",
+      "source_section": "### 5.6 CLD-001F 用量与额度",
+      "source_quote": "交付 Claude 用量只读模型与额度快照采集、降级策略与托盘展示数据。",
+      "statement": "WP F delivers the usage read model, quota snapshots, degradation and tray data.",
+      "verification": "节点 CLD-001-11 的 Gate",
+      "node_ids": [
+        "CLD-001-11"
+      ]
+    },
+    {
+      "id": "REQ-WP-G",
+      "kind": "work_packages",
+      "source_document": "primary-plan",
+      "source_section": "### 5.7 CLD-001G 前端与交付",
+      "source_quote": "交付 agent 切换 UI、Claude 账号/会话/用量界面、Provider 编辑扩展、命令契约与发布验收。",
+      "statement": "WP G delivers agent switching UI, Claude views, provider editing, contracts and release acceptance.",
+      "verification": "节点 CLD-001-12/13/14 的 Gate",
+      "node_ids": [
+        "CLD-001-12",
+        "CLD-001-13",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-TM-01",
+      "kind": "test_matrix",
+      "source_document": "primary-plan",
+      "source_section": "## 6. Test Matrix（测试矩阵）",
+      "source_quote": "所有行为任务按下列维度选择适用用例，并在任务中写明具体用例；不适用于某任务的维度必须在该任务里说明原因。",
+      "statement": "Every behavior task selects applicable dimensions and documents why a dimension does not apply.",
+      "verification": "每个节点 todo 的 Verification 字段",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-02",
+        "CLD-001-03",
+        "CLD-001-04",
+        "CLD-001-05",
+        "CLD-001-06",
+        "CLD-001-07",
+        "CLD-001-08",
+        "CLD-001-09",
+        "CLD-001-10",
+        "CLD-001-11",
+        "CLD-001-12",
+        "CLD-001-13",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-TM-02",
+      "kind": "test_matrix",
+      "source_document": "primary-plan",
+      "source_section": "## 6. Test Matrix（测试矩阵）",
+      "source_quote": "**安全**：凭据不落明文、不跨空间复制、日志与前端状态不出现 token、文件权限 0600/0700、默认空间只读约束。",
+      "statement": "Security cases cover plaintext, cross-space copies, token leakage, permissions and read-only default space.",
+      "verification": "节点 CLD-001-04/05/10/12 的安全用例",
+      "node_ids": [
+        "CLD-001-04",
+        "CLD-001-05",
+        "CLD-001-10",
+        "CLD-001-12"
+      ]
+    },
+    {
+      "id": "REQ-TM-03",
+      "kind": "test_matrix",
+      "source_document": "primary-plan",
+      "source_section": "## 6. Test Matrix（测试矩阵）",
+      "source_quote": "**回滚**：创建空间失败回滚、投影写入失败回滚、attach 失败还原原 `settings.json`、删除失败恢复暂存文件。",
+      "statement": "Rollback cases for creation, projection, attach and deletion.",
+      "verification": "节点 CLD-001-03/05/06/09 的回滚用例",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-05",
+        "CLD-001-06",
+        "CLD-001-09"
+      ]
+    },
+    {
+      "id": "REQ-TM-04",
+      "kind": "test_matrix",
+      "source_document": "primary-plan",
+      "source_section": "## 6. Test Matrix（测试矩阵）",
+      "source_quote": "**边界**：id 含连字符/大小写、超长路径、缺失 cwd、空 `settings.json`、模型列表为空、时区与过期时间边界。",
+      "statement": "Boundary cases for ids, paths, missing cwd, empty settings and time edges.",
+      "verification": "节点 CLD-001-03/09/11 的边界用例",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-09",
+        "CLD-001-11"
+      ]
+    },
+    {
+      "id": "REQ-TM-05",
+      "kind": "test_matrix",
+      "source_document": "primary-plan",
+      "source_section": "## 6. Test Matrix（测试矩阵）",
+      "source_quote": "**错误与降级**：上游 4xx/5xx、SSE 中途断开、Keychain 读取失败、凭据过期、额度接口失败。",
+      "statement": "Error and degradation cases for upstreams, streams, keychain, expiry and quota.",
+      "verification": "节点 CLD-001-04/07/11 的错误用例",
+      "node_ids": [
+        "CLD-001-04",
+        "CLD-001-07",
+        "CLD-001-11"
+      ]
+    },
+    {
+      "id": "REQ-VER-01",
+      "kind": "verification",
+      "source_document": "primary-plan",
+      "source_section": "## 7. Verification（验证）",
+      "source_quote": "每个节点必须运行：聚焦测试命令（`cargo test --test <node-test>` 或 `npm run test:ui`）与公共回归 Gate `make check`（前端构建、UI 测试、`cargo fmt -- --check`、`cargo clippy -- -D warnings`、`cargo test`）。",
+      "statement": "Every node runs a focused test plus `make check` as the common regression gate.",
+      "verification": "执行图 integration_gates 与 evidence",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-02",
+        "CLD-001-03",
+        "CLD-001-04",
+        "CLD-001-05",
+        "CLD-001-06",
+        "CLD-001-07",
+        "CLD-001-08",
+        "CLD-001-09",
+        "CLD-001-10",
+        "CLD-001-11",
+        "CLD-001-12",
+        "CLD-001-13",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-VER-02",
+      "kind": "verification",
+      "source_document": "primary-plan",
+      "source_section": "## 7. Verification（验证）",
+      "source_quote": "涉及前端行为的节点（CLD-001-12、CLD-001-13）除 `make check` 外必须运行 `npm run test:ui` 并保留交互测试证据。",
+      "statement": "Frontend nodes run and record UI interaction tests.",
+      "verification": "节点 CLD-001-12/13 的 UI Gate 证据",
+      "node_ids": [
+        "CLD-001-12",
+        "CLD-001-13"
+      ]
+    },
+    {
+      "id": "REQ-VER-03",
+      "kind": "verification",
+      "source_document": "primary-plan",
+      "source_section": "## 7. Verification（验证）",
+      "source_quote": "协议与集成节点必须提供端到端证据：以临时 LAM home 与 wiremock/fixture 上游运行，断言请求路径、鉴权头、SSE 事件序列与失败映射。",
+      "statement": "Protocol and integration nodes provide end-to-end evidence with fixtures.",
+      "verification": "节点 CLD-001-07/08 的端到端测试",
+      "node_ids": [
+        "CLD-001-07",
+        "CLD-001-08"
+      ]
+    },
+    {
+      "id": "REQ-VER-04",
+      "kind": "verification",
+      "source_document": "primary-plan",
+      "source_section": "## 7. Verification（验证）",
+      "source_quote": "真实二进制验收：CLD-001-14 必须提供一份手工验收矩阵，使用真实 `claude` 二进制与至少一个 Anthropic 兼容上游、一个 Chat Completions 上游完成登录、直连调用、网关调用、resume 与接力。",
+      "statement": "Node 14 delivers a manual acceptance matrix with the real binary and both upstream kinds.",
+      "verification": "节点 CLD-001-14 的手工验收矩阵",
+      "node_ids": [
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-VER-05",
+      "kind": "verification",
+      "source_document": "primary-plan",
+      "source_section": "## 7. Verification（验证）",
+      "source_quote": "兼容性 Gate：CLD-001-02 与 CLD-001-14 必须运行 Codex 既有测试套件并确认缓存文件、命令 DTO 与 wrapper 文本未发生非预期变化。",
+      "statement": "Compatibility gate confirms Codex caches, DTOs and wrapper text unchanged.",
+      "verification": "节点 CLD-001-02/14 的兼容性测试",
+      "node_ids": [
+        "CLD-001-02",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-DONE-01",
+      "kind": "done_criteria",
+      "source_document": "primary-plan",
+      "source_section": "## 8. Done（完成标准）",
+      "source_quote": "用户可在 LAM 中创建 Claude 空间，完成登录后看到与 Codex 对称的账号卡片与状态。",
+      "statement": "Users can create a Claude space and see a Codex-parity account card after login.",
+      "verification": "节点 CLD-001-12 交互测试与 CLD-001-03/04 的 Gate",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-04",
+        "CLD-001-12"
+      ]
+    },
+    {
+      "id": "REQ-DONE-02",
+      "kind": "done_criteria",
+      "source_document": "primary-plan",
+      "source_section": "## 8. Done（完成标准）",
+      "source_quote": "用户可新增 external API 账号，并让 Claude Code 通过直连或本地网关两条路径直接调用，无需手工编辑配置文件。",
+      "statement": "Users can add external API accounts usable by Claude Code through both direct and gateway routes.",
+      "verification": "节点 CLD-001-06/08/12 的端到端与 UI Gate",
+      "node_ids": [
+        "CLD-001-06",
+        "CLD-001-08",
+        "CLD-001-12"
+      ]
+    },
+    {
+      "id": "REQ-DONE-03",
+      "kind": "done_criteria",
+      "source_document": "primary-plan",
+      "source_section": "## 8. Done（完成标准）",
+      "source_quote": "用户可在 LAM 中查看 Claude 会话、复制 resume 命令并在终端恢复，可把单条会话接力到另一个空间且不复制任何凭据。",
+      "statement": "Users can view, resume and hand off Claude sessions without credential copies.",
+      "verification": "节点 CLD-001-10/13 的接力与 UI Gate",
+      "node_ids": [
+        "CLD-001-10",
+        "CLD-001-13"
+      ]
+    },
+    {
+      "id": "REQ-DONE-04",
+      "kind": "done_criteria",
+      "source_document": "primary-plan",
+      "source_section": "## 8. Done（完成标准）",
+      "source_quote": "用户可查看 Claude 用量与订阅额度（含托盘），失败时有明确的降级状态说明。",
+      "statement": "Users see Claude usage and quota (including tray) with explicit degraded states.",
+      "verification": "节点 CLD-001-11/13 的用量与托盘 Gate",
+      "node_ids": [
+        "CLD-001-11",
+        "CLD-001-13"
+      ]
+    },
+    {
+      "id": "REQ-DONE-05",
+      "kind": "done_criteria",
+      "source_document": "primary-plan",
+      "source_section": "## 8. Done（完成标准）",
+      "source_quote": "Codex 全部既有功能与测试保持通过，`make check` 在合并前全绿。",
+      "statement": "All Codex tests keep passing and `make check` is green before merge.",
+      "verification": "节点 CLD-001-02/14 的兼容性 Gate",
+      "node_ids": [
+        "CLD-001-02",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-STOP-01",
+      "kind": "stop_conditions",
+      "source_document": "primary-plan",
+      "source_section": "## 9. STOP（停止条件）",
+      "source_quote": "源计划、语义追溯与实现事实冲突，或需求/digest 漂移、双向映射缺失时停止并回到规划。",
+      "statement": "Stop on source, trace or digest drift.",
+      "verification": "节点 CLD-001-01/14 的源基线校验",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-STOP-02",
+      "kind": "stop_conditions",
+      "source_document": "primary-plan",
+      "source_section": "## 9. STOP（停止条件）",
+      "source_quote": "需要未授权公共语义变更（修改既有 Codex 命令契约、缓存格式或默认空间写入策略）时停止。",
+      "statement": "Stop before unapproved public-semantics changes such as Codex contracts or default-space writes.",
+      "verification": "节点 CLD-001-02/05/14 的变更评审",
+      "node_ids": [
+        "CLD-001-02",
+        "CLD-001-05",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-STOP-03",
+      "kind": "stop_conditions",
+      "source_document": "primary-plan",
+      "source_section": "## 9. STOP（停止条件）",
+      "source_quote": "需要破坏性操作或外部权限（写入用户 `~/.claude` 且无备份、读取浏览器凭据、调用非公开端点）时停止。",
+      "statement": "Stop before destructive actions or unapproved external access.",
+      "verification": "节点 CLD-001-04/05/06 的安全 Gate",
+      "node_ids": [
+        "CLD-001-04",
+        "CLD-001-05",
+        "CLD-001-06"
+      ]
+    },
+    {
+      "id": "REQ-STOP-04",
+      "kind": "stop_conditions",
+      "source_document": "primary-plan",
+      "source_section": "## 9. STOP（停止条件）",
+      "source_quote": "Claude Code 实测行为与假设冲突（Keychain 命名、`settings.json` schema、SSE 事件名、`count_tokens` 语义）时停止并回到设计评审。",
+      "statement": "Stop when observed Claude Code behavior contradicts the probed assumptions.",
+      "verification": "节点 CLD-001-04/05/07/08 的探针与协议测试",
+      "node_ids": [
+        "CLD-001-04",
+        "CLD-001-05",
+        "CLD-001-07",
+        "CLD-001-08"
+      ]
+    },
+    {
+      "id": "REQ-EXT-01",
+      "kind": "external_sources",
+      "source_document": "primary-plan",
+      "source_section": "## 10. External Sources（外部依据）",
+      "source_quote": "Anthropic Claude Code 官方文档：配置目录与 `CLAUDE_CONFIG_DIR`、`settings.json` 的 `env`/`apiKeyHelper` 语义、`ANTHROPIC_*` 环境变量、`--resume` 与会话存储位置。",
+      "statement": "Claude Code官方文档 is the normative source for config dir, settings and env semantics.",
+      "verification": "节点 CLD-001-03/04/05/09 的实现核对",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-04",
+        "CLD-001-05",
+        "CLD-001-09"
+      ]
+    },
+    {
+      "id": "REQ-EXT-02",
+      "kind": "external_sources",
+      "source_document": "primary-plan",
+      "source_section": "## 10. External Sources（外部依据）",
+      "source_quote": "Anthropic Messages API 官方文档：`POST /v1/messages` 请求/响应结构、SSE 事件名与错误信封、`count_tokens` 语义。",
+      "statement": "Messages API docs are normative for the gateway route.",
+      "verification": "节点 CLD-001-07 的协议测试对照",
+      "node_ids": [
+        "CLD-001-07"
+      ]
+    },
+    {
+      "id": "REQ-EXT-03",
+      "kind": "external_sources",
+      "source_document": "primary-plan",
+      "source_section": "## 10. External Sources（外部依据）",
+      "source_quote": "本地参考实现（行为参考，非规范）：`docs/cockpit-tools-main/src-tauri/src/modules/claude_account.rs`、`claude_instance.rs`，用于核对 Keychain 命名、凭据结构与额度接口形态。",
+      "statement": "Cockpit reference informs keychain naming, credential shape and quota endpoint probing.",
+      "verification": "节点 CLD-001-04/11 的探针设计",
+      "node_ids": [
+        "CLD-001-04",
+        "CLD-001-11"
+      ]
+    },
+    {
+      "id": "REQ-EXT-04",
+      "kind": "external_sources",
+      "source_document": "primary-plan",
+      "source_section": "## 10. External Sources（外部依据）",
+      "source_quote": "仓库内基线：`docs/FINAL-DESIGN.md`（Agent/AgentProfile 抽象）、`docs/05-tauri-command-contracts.md`（命令契约）、`apps/desktop/src-tauri/src/services/account.rs` 与 `provider_config_editor.rs`（wrapper 与受管投影既有语义）。",
+      "statement": "Repo baselines define the reuse targets for the agent abstraction, contracts and projection semantics.",
+      "verification": "节点 CLD-001-01/02/05/14 的复用与契约测试",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-02",
+        "CLD-001-05",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-EXT-05",
+      "kind": "external_sources",
+      "source_document": "primary-plan",
+      "source_section": "## 10. External Sources（外部依据）",
+      "source_quote": "待实测假设（对应 STOP 条件，必须由探针测试锁定后才能固化行为）：",
+      "statement": "Unverified assumptions must be locked by probe tests before behavior is fixed.",
+      "verification": "节点 CLD-001-04/07/11 的探针测试",
+      "node_ids": [
+        "CLD-001-04",
+        "CLD-001-07",
+        "CLD-001-11"
+      ]
+    },
+    {
+      "id": "REQ-OBJ-05",
+      "kind": "objective",
+      "source_document": "primary-plan",
+      "source_section": "## 1. Objective（目标）",
+      "source_quote": "external API 支持两条与 Codex 对称的路径：上游本身是 Anthropic Messages 兼容时走直连投影；上游是 OpenAI Chat Completions 时走 LAM 本地网关协议适配。",
+      "statement": "External API offers two Codex-parity routes: direct projection for Anthropic-compatible upstreams and a local gateway for Chat Completions upstreams.",
+      "verification": "节点 CLD-001-05/06/07/08 的 Gate",
+      "node_ids": [
+        "CLD-001-05",
+        "CLD-001-06",
+        "CLD-001-07",
+        "CLD-001-08"
+      ]
+    },
+    {
+      "id": "REQ-IF-34",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.1 Agent 领域接口",
+      "source_quote": "`AgentProfile` 字段：`id`、`agentId`、`displayName`、`homePath`、`wrapperPath`、`hasAuth`、`sessionCount`、`managed`、`note`；序列化使用 camelCase，与前端 `types.ts` 对齐。",
+      "statement": "AgentProfile exposes the agreed field set with camelCase serialization mirrored in the frontend.",
+      "verification": "节点 CLD-001-01 类型测试与 CLD-001-12 渲染测试",
+      "node_ids": [
+        "CLD-001-01",
+        "CLD-001-12"
+      ]
+    },
+    {
+      "id": "REQ-IF-35",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.7 用量与额度接口",
+      "source_quote": "用量解析以每条 assistant 消息的 usage 字段为原子事件，记录输入、输出、缓存创建与缓存读取 token，并把模型 id 写入行。",
+      "statement": "Usage parsing treats each assistant usage record as an atomic event with the four token counts and model id.",
+      "verification": "节点 CLD-001-11 解析与聚合测试",
+      "node_ids": [
+        "CLD-001-11"
+      ]
+    },
+    {
+      "id": "REQ-IF-36",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.7 用量与额度接口",
+      "source_quote": "使用 API Key 的账号没有订阅额度，必须显示 `unavailable` 与明确的账号类型说明，不发起额度请求。",
+      "statement": "API-key accounts show unavailable quota with an explicit reason and make no quota request.",
+      "verification": "节点 CLD-001-11 额度测试与 CLD-001-13 展示测试",
+      "node_ids": [
+        "CLD-001-11",
+        "CLD-001-13"
+      ]
+    },
+    {
+      "id": "REQ-IF-37",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.2 空间与文件契约",
+      "source_quote": "wrapper 生成位置沿用 Codex 的候选目录与 PATH 探测逻辑（优先 `~/.local/bin`，回退 `~/bin`），并在输出目录不在登录 PATH 时给出同样的警告。",
+      "statement": "Wrapper placement and PATH probing match the Codex behavior including the warning.",
+      "verification": "节点 CLD-001-03 路径与警告测试",
+      "node_ids": [
+        "CLD-001-03"
+      ]
+    },
+    {
+      "id": "REQ-IF-38",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.2 空间与文件契约",
+      "source_quote": "空间信号文件集合为 `settings.json`、`settings.local.json`、`.credentials.json`、`projects`、`history.jsonl`、`.claude.json`、`.config.json` 与 LAM marker；任一存在即视为可识别的 Claude 空间。",
+      "statement": "Space detection uses the agreed signal file set.",
+      "verification": "节点 CLD-001-03 发现测试",
+      "node_ids": [
+        "CLD-001-03"
+      ]
+    },
+    {
+      "id": "REQ-IF-39",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.1 Agent 领域接口",
+      "source_quote": "`AgentId` 取值为 `codex` 与 `claude_code`；新增取值必须同时提供 profile 扫描、wrapper 生成与能力声明，否则注册失败。",
+      "statement": "New AgentId values must supply scanning, wrapper and capability declarations or registration fails.",
+      "verification": "节点 CLD-001-01 注册校验测试",
+      "node_ids": [
+        "CLD-001-01"
+      ]
+    },
+    {
+      "id": "REQ-IF-40",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.4 Provider 与投影接口",
+      "source_quote": "受管键集合为 `env.ANTHROPIC_BASE_URL`、`env.ANTHROPIC_AUTH_TOKEN`、`env.ANTHROPIC_API_KEY`、`env.ANTHROPIC_MODEL`、`env.ANTHROPIC_DEFAULT_HAIKU_MODEL`、`env.ANTHROPIC_DEFAULT_SONNET_MODEL`、`env.ANTHROPIC_DEFAULT_OPUS_MODEL`、`env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`；未使用的键必须移除而不是写空值。",
+      "statement": "The managed env key set is fixed and unused keys are removed rather than blanked.",
+      "verification": "节点 CLD-001-05 投影键集合测试",
+      "node_ids": [
+        "CLD-001-05"
+      ]
+    },
+    {
+      "id": "REQ-IF-41",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.3 认证接口",
+      "source_quote": "LAM 只读凭据中的过期时间与订阅层级用于展示；任何凭据写入只发生在用户显式导入流程，且导入后立即写私密权限位（文件 0600、目录 0700）。",
+      "statement": "Credentials are read-only for display; writes happen only on explicit import with private permissions.",
+      "verification": "节点 CLD-001-04 导入与权限测试",
+      "node_ids": [
+        "CLD-001-04"
+      ]
+    },
+    {
+      "id": "REQ-IF-42",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.5 网关接口",
+      "source_quote": "认证同时接受 `x-api-key` 与 `Authorization: Bearer`；token 校验复用现有网关绑定与哈希校验逻辑，未知 token 必须返回 401 且不产生上游请求。",
+      "statement": "Gateway accepts both auth header styles and rejects unknown tokens with 401 before any upstream call.",
+      "verification": "节点 CLD-001-07 认证测试",
+      "node_ids": [
+        "CLD-001-07"
+      ]
+    },
+    {
+      "id": "REQ-IF-43",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.8 命令与前端接口",
+      "source_quote": "新增 Tauri 命令沿用 `<domain>_v2` 或 `<domain>` 命名并登记到 `docs/05-tauri-command-contracts.md`；命令返回结构化错误 `{code, message}`，禁止 panic 传播到前端。",
+      "statement": "New commands follow the naming convention, are registered in the contract doc and return structured errors.",
+      "verification": "节点 CLD-001-06 命令注册测试与 CLD-001-14 契约比对脚本",
+      "node_ids": [
+        "CLD-001-06",
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-IF-44",
+      "kind": "interfaces",
+      "source_document": "primary-plan",
+      "source_section": "### 4.8 命令与前端接口",
+      "source_quote": "视图层新增 agent 切换器，账号/会话/用量视图按 agent 过滤；Provider 编辑器新增 Anthropic Messages 协议与 Claude 模型映射区块。",
+      "statement": "Views add an agent switcher and the provider editor gains the new protocol and model mapping sections.",
+      "verification": "节点 CLD-001-12/13 UI 测试",
+      "node_ids": [
+        "CLD-001-12",
+        "CLD-001-13"
+      ]
+    },
+    {
+      "id": "REQ-TM-06",
+      "kind": "test_matrix",
+      "source_document": "primary-plan",
+      "source_section": "## 6. Test Matrix（测试矩阵）",
+      "source_quote": "**正常路径**：创建空间、登录后卡片刷新、直连/网关两种上游各跑一次真实请求形态。",
+      "statement": "Happy-path cases cover space creation, card refresh after login and both upstream routes.",
+      "verification": "节点 CLD-001-03/06/07/12 的用例",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-06",
+        "CLD-001-07",
+        "CLD-001-12"
+      ]
+    },
+    {
+      "id": "REQ-TM-07",
+      "kind": "test_matrix",
+      "source_document": "primary-plan",
+      "source_section": "## 6. Test Matrix（测试矩阵）",
+      "source_quote": "**非法输入**：非法 profile id（路径穿越、空串、保留字）、非法 base URL、非法协议组合、非法 token 形态。",
+      "statement": "Invalid input cases cover ids, base URLs, protocol combinations and token shapes.",
+      "verification": "节点 CLD-001-03/05/07 的用例",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-05",
+        "CLD-001-07"
+      ]
+    },
+    {
+      "id": "REQ-TM-08",
+      "kind": "test_matrix",
+      "source_document": "primary-plan",
+      "source_section": "## 6. Test Matrix（测试矩阵）",
+      "source_quote": "**状态与冲突**：已存在同名空间、wrapper 已存在且内容不同、投影文件被外部修改（drift）、并发创建同名账号。",
+      "statement": "State and conflict cases cover name collisions, wrapper conflicts, projection drift and concurrent creation.",
+      "verification": "节点 CLD-001-03/05/06 的用例",
+      "node_ids": [
+        "CLD-001-03",
+        "CLD-001-05",
+        "CLD-001-06"
+      ]
+    },
+    {
+      "id": "REQ-STOP-05",
+      "kind": "stop_conditions",
+      "source_document": "primary-plan",
+      "source_section": "## 9. STOP（停止条件）",
+      "source_quote": "连续五轮修复仍无法通过节点验收时停止并上报证据。",
+      "statement": "Stop and report after five failed repair rounds.",
+      "verification": "节点 CLD-001-14 的升级流程",
+      "node_ids": [
+        "CLD-001-14"
+      ]
+    },
+    {
+      "id": "REQ-EXT-06",
+      "kind": "external_sources",
+      "source_document": "primary-plan",
+      "source_section": "## 10. External Sources（外部依据）",
+      "source_quote": "macOS Keychain 的 Claude Code 凭据 service 名推导规则与非默认目录后缀形态。",
+      "statement": "The keychain service derivation is an assumption to be locked by probes.",
+      "verification": "节点 CLD-001-04 探针测试",
+      "node_ids": [
+        "CLD-001-04"
+      ]
+    },
+    {
+      "id": "REQ-EXT-07",
+      "kind": "external_sources",
+      "source_document": "primary-plan",
+      "source_section": "## 10. External Sources（外部依据）",
+      "source_quote": "`claude --resume` 对跨目录复制 JSONL 的接受度与所需的最小元数据。",
+      "statement": "Resume acceptance of cross-directory JSONL copies is pending probe verification.",
+      "verification": "节点 CLD-001-10 接力测试",
+      "node_ids": [
+        "CLD-001-10"
+      ]
+    },
+    {
+      "id": "REQ-EXT-08",
+      "kind": "external_sources",
+      "source_document": "primary-plan",
+      "source_section": "## 10. External Sources（外部依据）",
+      "source_quote": "`count_tokens` 在客户端调用频率与缺失时的降级行为。",
+      "statement": "count_tokens call frequency and degradation behavior are pending probe verification.",
+      "verification": "节点 CLD-001-07 契约测试",
+      "node_ids": [
+        "CLD-001-07"
+      ]
+    }
+  ],
+  "review": {
+    "status": "PASS",
+    "unresolved_requirements": [],
+    "unjustified_nodes": [],
+    "reviewed_at": "2026-09-24T21:30:00+08:00"
+  }
+}

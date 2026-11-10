@@ -1,0 +1,355 @@
+{
+  "schema_version": 5,
+  "plan_id": "REL-001",
+  "project_root": "../../..",
+  "source_plan": "docs/release-readiness-and-cleanup-plan.md",
+  "traceability": "traceability.json",
+  "work_packages": [
+    "第一阶段 恢复发布检查",
+    "移除多余的直接依赖",
+    "收敛旧版 Provider 操作入口",
+    "清理开发机探针和无生产调用方的封装",
+    "合并重复刷新逻辑并拆分过大的模块",
+    "整理文档与非运行工件",
+    "第四阶段 整理文档并完成打包验收"
+  ],
+  "nodes": [
+    {
+      "id": "REL-001-01",
+      "title": "恢复发布检查",
+      "work_packages": [
+        "第一阶段 恢复发布检查"
+      ],
+      "source_sections": [
+        "第一阶段 恢复发布检查"
+      ],
+      "todo": "checks.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "READY",
+      "status": "验证成功",
+      "depends_on": [],
+      "blockers": [],
+      "consumes": [],
+      "produces": [
+        {
+          "id": "artifact:rel-001-01",
+          "kind": "verification",
+          "description": "恢复发布检查"
+        }
+      ],
+      "integration_gates": [
+        "make check"
+      ],
+      "evidence": [
+        {
+          "command": "make check",
+          "result": "PASS",
+          "scope": "本地源码；完整前端/Node/Rust 套件，日志 /tmp/lamdock-check-initial.log；原始日志保存于 /Users/zhanhd/Documents/products/github/lamdock-release-evidence-20261102-142129",
+          "verified_at": "2026-11-02T14:09:06.312624+08:00"
+        }
+      ]
+    },
+    {
+      "id": "REL-001-02",
+      "title": "移除无用直接依赖",
+      "work_packages": [
+        "移除多余的直接依赖"
+      ],
+      "source_sections": [
+        "移除多余的直接依赖"
+      ],
+      "todo": "dependencies.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "READY",
+      "status": "验证成功",
+      "depends_on": [
+        "REL-001-01"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:rel-001-01"
+      ],
+      "produces": [
+        {
+          "id": "artifact:rel-001-02",
+          "kind": "verification",
+          "description": "移除无用直接依赖"
+        }
+      ],
+      "integration_gates": [
+        "cargo check --offline -j 2"
+      ],
+      "evidence": [
+        {
+          "command": "cargo check --offline -j 2",
+          "result": "PASS",
+          "scope": "清理后的源码；make check 完整通过，聚焦 126 项 Rust 和 59 项界面测试通过；原始日志保存于 /Users/zhanhd/Documents/products/github/lamdock-release-evidence-20261102-142129",
+          "verified_at": "2026-11-02T14:19:31.716294+08:00"
+        }
+      ]
+    },
+    {
+      "id": "REL-001-03",
+      "title": "收敛旧 Provider 入口",
+      "work_packages": [
+        "收敛旧版 Provider 操作入口"
+      ],
+      "source_sections": [
+        "收敛旧版 Provider 操作入口"
+      ],
+      "todo": "provider.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "READY",
+      "status": "验证成功",
+      "depends_on": [
+        "REL-001-01"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:rel-001-01"
+      ],
+      "produces": [
+        {
+          "id": "artifact:rel-001-03",
+          "kind": "verification",
+          "description": "收敛旧 Provider 入口"
+        }
+      ],
+      "integration_gates": [
+        "make check"
+      ],
+      "evidence": [
+        {
+          "command": "make check",
+          "result": "PASS",
+          "scope": "清理后的源码；make check 完整通过，聚焦 126 项 Rust 和 59 项界面测试通过；原始日志保存于 /Users/zhanhd/Documents/products/github/lamdock-release-evidence-20261102-142129",
+          "verified_at": "2026-11-02T14:19:31.716294+08:00"
+        }
+      ]
+    },
+    {
+      "id": "REL-001-04",
+      "title": "清理闲置前端封装",
+      "work_packages": [
+        "清理开发机探针和无生产调用方的封装"
+      ],
+      "source_sections": [
+        "清理开发机探针和无生产调用方的封装"
+      ],
+      "todo": "frontend.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "READY",
+      "status": "验证成功",
+      "depends_on": [
+        "REL-001-01"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:rel-001-01"
+      ],
+      "produces": [
+        {
+          "id": "artifact:rel-001-04",
+          "kind": "verification",
+          "description": "清理闲置前端封装"
+        }
+      ],
+      "integration_gates": [
+        "make check"
+      ],
+      "evidence": [
+        {
+          "command": "make check",
+          "result": "PASS",
+          "scope": "清理后的源码；make check 完整通过，聚焦 126 项 Rust 和 59 项界面测试通过；原始日志保存于 /Users/zhanhd/Documents/products/github/lamdock-release-evidence-20261102-142129",
+          "verified_at": "2026-11-02T14:19:31.716294+08:00"
+        }
+      ]
+    },
+    {
+      "id": "REL-001-05",
+      "title": "复用集成刷新策略",
+      "work_packages": [
+        "合并重复刷新逻辑并拆分过大的模块"
+      ],
+      "source_sections": [
+        "合并重复刷新逻辑并拆分过大的模块"
+      ],
+      "todo": "refresh.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "READY",
+      "status": "验证成功",
+      "depends_on": [
+        "REL-001-01"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:rel-001-01"
+      ],
+      "produces": [
+        {
+          "id": "artifact:rel-001-05",
+          "kind": "verification",
+          "description": "复用集成刷新策略"
+        }
+      ],
+      "integration_gates": [
+        "make check"
+      ],
+      "evidence": [
+        {
+          "command": "make check",
+          "result": "PASS",
+          "scope": "清理后的源码；make check 完整通过，聚焦 126 项 Rust 和 59 项界面测试通过；原始日志保存于 /Users/zhanhd/Documents/products/github/lamdock-release-evidence-20261102-142129",
+          "verified_at": "2026-11-02T14:19:31.716294+08:00"
+        }
+      ]
+    },
+    {
+      "id": "REL-001-06",
+      "title": "整理文档与非运行工件",
+      "work_packages": [
+        "整理文档与非运行工件"
+      ],
+      "source_sections": [
+        "整理文档与非运行工件"
+      ],
+      "todo": "docs.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "READY",
+      "status": "验证成功",
+      "depends_on": [
+        "REL-001-02",
+        "REL-001-03",
+        "REL-001-04",
+        "REL-001-05"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:rel-001-02",
+        "artifact:rel-001-03",
+        "artifact:rel-001-04",
+        "artifact:rel-001-05"
+      ],
+      "produces": [
+        {
+          "id": "artifact:rel-001-06",
+          "kind": "verification",
+          "description": "整理文档与非运行工件"
+        }
+      ],
+      "integration_gates": [
+        "node --test apps/desktop/scripts/*.test.mjs"
+      ],
+      "evidence": [
+        {
+          "command": "node --test apps/desktop/scripts/*.test.mjs",
+          "result": "PASS",
+          "scope": "45 项 Node 测试、新增文档相对链接、REL/CLD 图谱、静态资源引用检查；归档清单保留；原始日志保存于 /Users/zhanhd/Documents/products/github/lamdock-release-evidence-20261102-142129",
+          "verified_at": "2026-11-02T14:20:26.201230+08:00"
+        }
+      ]
+    },
+    {
+      "id": "REL-001-07",
+      "title": "打包与真实功能验收",
+      "work_packages": [
+        "第四阶段 整理文档并完成打包验收"
+      ],
+      "source_sections": [
+        "第四阶段 整理文档并完成打包验收"
+      ],
+      "todo": "package.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "REL-001-01",
+        "REL-001-02",
+        "REL-001-03",
+        "REL-001-04",
+        "REL-001-05",
+        "REL-001-06"
+      ],
+      "blockers": [
+        "真实帐号 GUI：cmux Computer Use 尚未初始化；当前旧 LAM 正在运行，未启动共享真实数据的新实例",
+        "正式发布签名/公证及 Git 提交标签记录尚未完成"
+      ],
+      "consumes": [
+        "artifact:rel-001-01",
+        "artifact:rel-001-02",
+        "artifact:rel-001-03",
+        "artifact:rel-001-04",
+        "artifact:rel-001-05",
+        "artifact:rel-001-06"
+      ],
+      "produces": [
+        {
+          "id": "artifact:rel-001-07",
+          "kind": "verification",
+          "description": "打包与真实功能验收",
+          "locator": "docs/release-cleanup-execution-report.md"
+        }
+      ],
+      "integration_gates": [
+        "make dmg"
+      ],
+      "evidence": [
+        {
+          "command": "make dmg",
+          "result": "PASS",
+          "scope": "当前 Apple Silicon 本地试用包；排除 lam-core，保留 make accounts 和三运行时组件；签名/哈希/挂载验证通过；sha256 60ca10468cd6047b8a55b78a7c08b62c43e91956930fd511abead3a1f37bfaaa；正式 GUI 验收未完成",
+          "verified_at": "2026-11-02T15:01:38.516397+08:00"
+        }
+      ]
+    },
+    {
+      "id": "REL-001-08",
+      "title": "独立后续模块拆分",
+      "work_packages": [
+        "合并重复刷新逻辑并拆分过大的模块"
+      ],
+      "source_sections": [
+        "合并重复刷新逻辑并拆分过大的模块"
+      ],
+      "todo": "refactor.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "REL-001-01",
+        "REL-001-03",
+        "REL-001-04",
+        "REL-001-05"
+      ],
+      "blockers": [
+        "独立后续重构，不阻塞发布"
+      ],
+      "consumes": [
+        "artifact:rel-001-01",
+        "artifact:rel-001-03",
+        "artifact:rel-001-04",
+        "artifact:rel-001-05"
+      ],
+      "produces": [
+        {
+          "id": "artifact:rel-001-08",
+          "kind": "verification",
+          "description": "独立后续模块拆分"
+        }
+      ],
+      "integration_gates": [
+        "make check"
+      ],
+      "evidence": []
+    }
+  ]
+}

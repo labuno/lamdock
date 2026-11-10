@@ -1,0 +1,537 @@
+{
+  "schema_version": 5,
+  "plan_id": "CLD-001",
+  "project_root": "../../..",
+  "source_plan": "docs/CLD-001-claude-agent-support-plan.md",
+  "traceability": "traceability.json",
+  "work_packages": [
+    "CLD-001A",
+    "CLD-001B",
+    "CLD-001C",
+    "CLD-001D",
+    "CLD-001E",
+    "CLD-001F",
+    "CLD-001G"
+  ],
+  "nodes": [
+    {
+      "id": "CLD-001-01",
+      "title": "Agent 领域模型与注册表",
+      "work_packages": [
+        "CLD-001A"
+      ],
+      "source_sections": [
+        "## 1. Objective（目标）",
+        "### 4.1 Agent 领域接口",
+        "### 5.1 CLD-001A 领域模型与存储基线"
+      ],
+      "todo": "CLD-001-01-agent-model.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "READY",
+      "status": "待执行",
+      "depends_on": [],
+      "blockers": [],
+      "consumes": [],
+      "produces": [
+        {
+          "id": "artifact:agent-model",
+          "kind": "domain_model",
+          "description": "AgentId/AgentProfile/AgentCapabilities 类型与 AgentRegistry 分派门面，Codex 适配器零回归"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test agent_model",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-02",
+      "title": "多 agent 存储布局与 Codex 零回归基线",
+      "work_packages": [
+        "CLD-001A"
+      ],
+      "source_sections": [
+        "## 1. Objective（目标）",
+        "### 4.2 空间与文件契约",
+        "### 5.1 CLD-001A 领域模型与存储基线",
+        "## 7. Verification（验证）"
+      ],
+      "todo": "CLD-001-02-agent-store.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-01"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:agent-model"
+      ],
+      "produces": [
+        {
+          "id": "artifact:multi-agent-store",
+          "kind": "storage",
+          "description": "按 agent 分区的 LAM 路径、Claude 账号缓存/notes 与 marker 读写，Codex 存储字节兼容"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test agent_store_migration",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-03",
+      "title": "Claude 空间生命周期与 wrapper",
+      "work_packages": [
+        "CLD-001B"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.2 空间与文件契约",
+        "### 5.2 CLD-001B Claude 空间与认证"
+      ],
+      "todo": "CLD-001-03-claude-spaces.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-02"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:multi-agent-store"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-space-lifecycle",
+          "kind": "service",
+          "description": "Claude 空间发现/创建/重命名/删除与 claude-<name> wrapper"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test claude_spaces",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-04",
+      "title": "Claude 登录与会话凭据探测",
+      "work_packages": [
+        "CLD-001B"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.3 认证接口",
+        "### 5.2 CLD-001B Claude 空间与认证",
+        "## 9. STOP（停止条件）"
+      ],
+      "todo": "CLD-001-04-claude-auth.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-03"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-space-lifecycle"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-auth-state",
+          "kind": "service",
+          "description": "终端登录入口、Keychain/.credentials.json 探测与认证元数据"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test claude_auth",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-05",
+      "title": "Provider 协议扩展与 Claude settings.json 托管投影",
+      "work_packages": [
+        "CLD-001C"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.4 Provider 与投影接口",
+        "### 5.3 CLD-001C External API 直连接入"
+      ],
+      "todo": "CLD-001-05-claude-projection.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-02"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:multi-agent-store"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-settings-projection",
+          "kind": "service",
+          "description": "anthropic_messages 协议、settings.json 受管投影与密钥引用"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test claude_projection",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-06",
+      "title": "Claude API 账号编排（直连）",
+      "work_packages": [
+        "CLD-001C"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.4 Provider 与投影接口",
+        "### 5.3 CLD-001C External API 直连接入",
+        "## 8. Done（完成标准）"
+      ],
+      "todo": "CLD-001-06-claude-api-account.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-04",
+        "CLD-001-05"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-auth-state",
+        "artifact:claude-settings-projection"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-api-account",
+          "kind": "api",
+          "description": "plan/execute/detach/rotate API 账号编排与命令注册"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test claude_api_account",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-07",
+      "title": "Anthropic Messages 网关入站与适配",
+      "work_packages": [
+        "CLD-001D"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.5 网关接口",
+        "### 5.4 CLD-001D 本地网关（Anthropic Messages）",
+        "## 7. Verification（验证）"
+      ],
+      "todo": "CLD-001-07-claude-gateway.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-05"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-settings-projection"
+      ],
+      "produces": [
+        {
+          "id": "artifact:anthropic-gateway-route",
+          "kind": "gateway",
+          "description": "/v1/messages 入站契约与 messages_to_chat_completions 适配"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test claude_gateway_messages",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-08",
+      "title": "Claude 网关绑定、启动与密钥注入",
+      "work_packages": [
+        "CLD-001D"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.5 网关接口",
+        "### 5.4 CLD-001D 本地网关（Anthropic Messages）"
+      ],
+      "todo": "CLD-001-08-claude-gateway-binding.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-06",
+        "CLD-001-07"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-api-account",
+        "artifact:anthropic-gateway-route"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-gateway-binding",
+          "kind": "gateway",
+          "description": "带 agent 维度的网关绑定、Claude wrapper 注入与 sidecar 启动链路"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test claude_gateway_binding",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-09",
+      "title": "Claude 会话索引与删除",
+      "work_packages": [
+        "CLD-001E"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.6 会话接口",
+        "### 5.5 CLD-001E Claude 会话"
+      ],
+      "todo": "CLD-001-09-claude-sessions.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-03"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-space-lifecycle"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-session-index",
+          "kind": "service",
+          "description": "projects/**/*.jsonl 索引、分页查询与暂存删除"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test claude_sessions",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-10",
+      "title": "Claude resume 与跨空间接力",
+      "work_packages": [
+        "CLD-001E"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.6 会话接口",
+        "### 5.5 CLD-001E Claude 会话",
+        "## 8. Done（完成标准）"
+      ],
+      "todo": "CLD-001-10-claude-handoff.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-09"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-session-index"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-handoff",
+          "kind": "service",
+          "description": "resume 命令构建、终端恢复与只复制 JSONL 的跨空间接力"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test claude_handoff",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-11",
+      "title": "Claude 用量与额度采集",
+      "work_packages": [
+        "CLD-001F"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.7 用量与额度接口",
+        "### 5.6 CLD-001F 用量与额度"
+      ],
+      "todo": "CLD-001-11-claude-usage.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-04",
+        "CLD-001-09"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-auth-state",
+        "artifact:claude-session-index"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-usage-readmodel",
+          "kind": "read_model",
+          "description": "claude-usage.sqlite3 用量只读模型、查询服务与额度快照"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --test claude_usage_quota",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-12",
+      "title": "Claude 账号与 Agent 切换 UI",
+      "work_packages": [
+        "CLD-001G"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.8 命令与前端接口",
+        "### 5.7 CLD-001G 前端与交付",
+        "## 6. Test Matrix（测试矩阵）"
+      ],
+      "todo": "CLD-001-12-claude-accounts-ui.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-06",
+        "CLD-001-08"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-api-account",
+        "artifact:claude-gateway-binding"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-accounts-ui",
+          "kind": "ui",
+          "description": "agent 切换器、Claude 账号卡片与 API 账号对话框"
+        }
+      ],
+      "integration_gates": [
+        "npm run test:ui",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-13",
+      "title": "Claude 会话与用量 UI",
+      "work_packages": [
+        "CLD-001G"
+      ],
+      "source_sections": [
+        "### 2.1 In Scope（本次交付）",
+        "### 4.8 命令与前端接口",
+        "### 5.7 CLD-001G 前端与交付"
+      ],
+      "todo": "CLD-001-13-claude-sessions-usage-ui.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-10",
+        "CLD-001-11"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-handoff",
+        "artifact:claude-usage-readmodel"
+      ],
+      "produces": [
+        {
+          "id": "artifact:claude-sessions-usage-ui",
+          "kind": "ui",
+          "description": "Claude 会话视图、resume/接力交互、用量与托盘展示"
+        }
+      ],
+      "integration_gates": [
+        "npm run test:ui",
+        "make check"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CLD-001-14",
+      "title": "命令契约、文档与发布验收",
+      "work_packages": [
+        "CLD-001G"
+      ],
+      "source_sections": [
+        "### 4.8 命令与前端接口",
+        "### 5.7 CLD-001G 前端与交付",
+        "## 7. Verification（验证）",
+        "## 8. Done（完成标准）"
+      ],
+      "todo": "CLD-001-14-contracts-release.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": [
+        "CLD-001-12",
+        "CLD-001-13"
+      ],
+      "blockers": [],
+      "consumes": [
+        "artifact:claude-accounts-ui",
+        "artifact:claude-sessions-usage-ui"
+      ],
+      "produces": [
+        {
+          "id": "artifact:cld-001-contracts",
+          "kind": "docs",
+          "description": "命令契约文档、README/设计更新与手工验收矩阵"
+        }
+      ],
+      "integration_gates": [
+        "make check",
+        "make build"
+      ],
+      "evidence": []
+    }
+  ]
+}

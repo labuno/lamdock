@@ -1,0 +1,1 @@
+Route files are split from `App.tsx` by product area. Current routes are Overview, Sessions, Providers, Monitor, and Settings. Monitor covers saved Gateway requests only; official quota information remains in account cards.

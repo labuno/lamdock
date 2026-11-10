@@ -1,0 +1,2643 @@
+use localagentmanager_core::{
+    antigravity_port, build_resume_command, codex_launch_permission_preset, create_account_plan,
+    create_relay_plan, delete_sessions, execute_create_account, execute_create_relay,
+    execute_rename_account, gateway_first_response_timeout_seconds, get_live_antigravity_quota,
+    get_profile_quota, list_accounts, list_cached_accounts, list_cached_quotas, list_sessions,
+    list_sessions_page, list_terminal_targets, query_deletable_session_paths, query_sessions_page,
+    refresh_all_quotas, relay_resume_session, rename_account_plan, repair_managed_wrappers,
+    reset_profile_quota, resolve_home_root, selected_terminal_target_id, set_antigravity_port,
+    set_codex_launch_permission_preset, set_gateway_first_response_timeout_seconds,
+    set_selected_terminal_target_id, terminal_applescript, update_account_note, AccountNoteUpdate,
+    CodexLaunchPermissionPreset, CreateAccountRequest, CreateRelayRequest, DeleteSessionsRequest,
+    InstallationLock, ManagedConfigProjection, ProfileBindingCollection, ProfileProviderBinding,
+    ProjectionOwnership, ProviderHubPaths, RelayResumeRequest, RenameAccountRequest,
+    ResumeCommandRequest, SessionAgeFilter, SessionPageRequest, SessionQueryRequest,
+    SessionSelectionRequest, SessionSort, StoreOptions, VersionedFileStore,
+};
+use std::collections::BTreeMap;
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+#[test]
+fn session_delete_ignores_and_preserves_retired_usage_database() {
+    let home = temp_home("session-retired-usage");
+    let (profile, paths) = seed_old_session_set(&home, "a");
+    fs::remove_file(profile.join("state_5.sqlite")).unwrap();
+    let eligible = paths.last().unwrap().clone();
+    let legacy_db = home.join(".lam/usage/usage.sqlite3");
+    write(&legacy_db, "unreadable retired usage database");
+
+    delete_sessions(
+        &home,
+        &DeleteSessionsRequest {
+            profile_id: "a".into(),
+            paths: vec![eligible.clone()],
+        },
+    )
+    .unwrap();
+
+    assert!(!eligible.exists());
+    assert_eq!(
+        fs::read_to_string(legacy_db).unwrap(),
+        "unreadable retired usage database"
+    );
+}
+
+#[test]
+fn packaged_app_launch_has_visible_entrypoint() {
+    let config_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(config_path).unwrap()).unwrap();
+
+    let windows = config["app"]["windows"].as_array().unwrap();
+    let main = windows
+        .iter()
+        .find(|window| window["label"] == "main")
+        .unwrap();
+    let popover = windows
+        .iter()
+        .find(|window| window["label"] == "quota-popover")
+        .unwrap();
+
+    assert_eq!(config["productName"], "LamDock");
+    assert_eq!(main["title"], "LamDock");
+    assert_eq!(main["visible"], true);
+    assert_eq!(popover["visible"], false);
+    assert!(!config["identifier"].as_str().unwrap().ends_with(".app"));
+}
+
+#[test]
+fn desktop_html_title_uses_lam_name() {
+    let index_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../index.html");
+    let index = fs::read_to_string(index_path).unwrap();
+
+    assert!(index.contains("<title>LamDock</title>"));
+    assert!(!index.contains("LocalAgentManager"));
+}
+
+#[test]
+fn gateway_first_response_timeout_setting_defaults_validates_and_preserves_settings() {
+    let home = tempfile::tempdir().unwrap();
+    assert_eq!(gateway_first_response_timeout_seconds(home.path()), 60);
+
+    localagentmanager_core::set_auth_mode(home.path(), "pat").unwrap();
+    set_gateway_first_response_timeout_seconds(home.path(), 120).unwrap();
+    assert_eq!(gateway_first_response_timeout_seconds(home.path()), 120);
+    assert_eq!(
+        localagentmanager_core::get_auth_mode(home.path()).unwrap(),
+        "pat"
+    );
+
+    assert_eq!(
+        set_gateway_first_response_timeout_seconds(home.path(), 9)
+            .unwrap_err()
+            .code,
+        "GATEWAY_TIMEOUT_CONFIG_INVALID"
+    );
+    assert_eq!(
+        set_gateway_first_response_timeout_seconds(home.path(), 601)
+            .unwrap_err()
+            .code,
+        "GATEWAY_TIMEOUT_CONFIG_INVALID"
+    );
+
+    let settings = home.path().join(".lam/config/settings.json");
+    fs::write(&settings, r#"{"gatewayFirstResponseTimeoutSeconds":"bad"}"#).unwrap();
+    assert_eq!(gateway_first_response_timeout_seconds(home.path()), 60);
+}
+
+#[test]
+fn codex_launch_permission_setting_defaults_round_trips_and_preserves_settings() {
+    let home = tempfile::tempdir().unwrap();
+    assert_eq!(
+        codex_launch_permission_preset(home.path()),
+        CodexLaunchPermissionPreset::AskForApproval
+    );
+
+    localagentmanager_core::set_auth_mode(home.path(), "pat").unwrap();
+    set_codex_launch_permission_preset(home.path(), CodexLaunchPermissionPreset::FullAccess)
+        .unwrap();
+    assert_eq!(
+        codex_launch_permission_preset(home.path()),
+        CodexLaunchPermissionPreset::FullAccess
+    );
+    assert_eq!(
+        localagentmanager_core::get_auth_mode(home.path()).unwrap(),
+        "pat"
+    );
+
+    let settings = home.path().join(".lam/config/settings.json");
+    fs::write(&settings, r#"{"codexLaunchPermissionPreset":"unknown"}"#).unwrap();
+    assert_eq!(
+        codex_launch_permission_preset(home.path()),
+        CodexLaunchPermissionPreset::AskForApproval
+    );
+}
+
+#[test]
+fn account_config_parser_skips_comments_blank_lines_and_unrelated_toml() {
+    let home = tempfile::tempdir().unwrap();
+    let codex_home = home.path().join(".codex-external");
+    fs::create_dir_all(codex_home.join("sessions")).unwrap();
+    fs::write(
+        codex_home.join("config.toml"),
+        r#"# managed profile
+
+personality = "pragmatic"
+model = "model-b"
+model_provider = "account-external"
+
+[features]
+multi_agent = true
+"#,
+    )
+    .unwrap();
+
+    let account = list_accounts(home.path())
+        .unwrap()
+        .into_iter()
+        .find(|account| account.id == "external")
+        .unwrap();
+    assert_eq!(account.provider_id.as_deref(), Some("account-external"));
+    assert_eq!(account.model.as_deref(), Some("model-b"));
+}
+
+#[test]
+fn antigravity_port_setting_round_trips_clears_and_validates() {
+    let home = tempfile::tempdir().unwrap();
+    assert_eq!(antigravity_port(home.path()), None);
+
+    localagentmanager_core::set_auth_mode(home.path(), "pat").unwrap();
+    set_antigravity_port(home.path(), Some(62891)).unwrap();
+    assert_eq!(antigravity_port(home.path()), Some(62891));
+    assert_eq!(
+        localagentmanager_core::get_auth_mode(home.path()).unwrap(),
+        "pat"
+    );
+
+    set_antigravity_port(home.path(), None).unwrap();
+    assert_eq!(antigravity_port(home.path()), None);
+    assert_eq!(
+        localagentmanager_core::get_auth_mode(home.path()).unwrap(),
+        "pat"
+    );
+
+    for port in [0, 65536] {
+        assert_eq!(
+            set_antigravity_port(home.path(), Some(port))
+                .unwrap_err()
+                .code,
+            "ANTIGRAVITY_PORT_CONFIG_INVALID"
+        );
+    }
+}
+
+#[test]
+fn antigravity_port_setting_ignores_invalid_values_and_normalizes_non_objects() {
+    let home = tempfile::tempdir().unwrap();
+    let settings = home.path().join(".lam/config/settings.json");
+    fs::create_dir_all(settings.parent().unwrap()).unwrap();
+
+    for value in [r#""bad""#, "1.5", "0", "65536"] {
+        fs::write(&settings, format!(r#"{{"antigravityPort":{value}}}"#)).unwrap();
+        assert_eq!(antigravity_port(home.path()), None);
+    }
+
+    fs::write(&settings, r#"["not-an-object"]"#).unwrap();
+    set_antigravity_port(home.path(), Some(62891)).unwrap();
+    assert_eq!(antigravity_port(home.path()), Some(62891));
+}
+
+#[test]
+fn antigravity_auto_discovery_reports_process_scan_failure_without_manual_configuration() {
+    let _guard = env_lock().lock().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let empty_path = tempfile::tempdir().unwrap();
+    let original_path = std::env::var_os("PATH");
+    std::env::set_var("PATH", empty_path.path());
+
+    let response = get_live_antigravity_quota(home.path()).unwrap();
+
+    restore_env_var("PATH", original_path);
+    assert!(!response.ok);
+    assert!(response.models.is_empty());
+    assert!(response.groups.is_empty());
+    assert_eq!(response.description, None);
+    assert!(response
+        .error
+        .as_deref()
+        .unwrap()
+        .contains("Failed to find process"));
+}
+
+#[test]
+fn runtime_home_root_uses_explicit_lam_home_for_all_launch_modes() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("runtime-home");
+    let lam_home = home.join(".fake-home");
+    let original_home = std::env::var_os("HOME");
+    let original_lam_home = std::env::var_os("LAM_HOME");
+    std::env::set_var("HOME", &home);
+    std::env::set_var("LAM_HOME", &lam_home);
+
+    let resolved = resolve_home_root().unwrap();
+
+    restore_env_var("LAM_HOME", original_lam_home);
+    restore_env_var("HOME", original_home);
+
+    assert_eq!(resolved, lam_home);
+}
+
+fn temp_home(name: &str) -> PathBuf {
+    let mut path = std::env::temp_dir();
+    let suffix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    path.push(format!("lam-test-{name}-{suffix}"));
+    fs::create_dir_all(&path).unwrap();
+    path
+}
+
+fn write(path: &Path, body: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(path, body).unwrap();
+}
+
+fn write_executable(path: &Path, body: &str) {
+    write(path, body);
+    let mut perms = fs::metadata(path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms).unwrap();
+}
+
+fn env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+fn restore_env_var(name: &str, value: Option<std::ffi::OsString>) {
+    if let Some(value) = value {
+        std::env::set_var(name, value);
+    } else {
+        std::env::remove_var(name);
+    }
+}
+
+fn seed_codex_home(home: &Path, name: &str) -> PathBuf {
+    let profile = if name == "main" {
+        home.join(".codex")
+    } else {
+        home.join(format!(".codex-{name}"))
+    };
+    fs::create_dir_all(profile.join("sessions/2026/06/01")).unwrap();
+    write(&profile.join("auth.json"), r#"{"token":"secret"}"#);
+    write(
+        &profile.join("config.toml"),
+        "model = \"gpt-5-codex\"\nmodel_provider = \"openai\"\n",
+    );
+    write(
+        &profile.join("history.jsonl"),
+        "{\"text\":\"do not merge\"}\n",
+    );
+    write(
+        &profile.join("sessions/2026/06/01/session-a.jsonl"),
+        "{\"session_id\":\"sid-a\",\"cwd\":\"/tmp/project one\",\"summary\":\"Build account scanner\",\"model\":\"gpt-5-codex\"}\n",
+    );
+    write(&profile.join("logs_2.sqlite"), "sqlite secret");
+    rusqlite::Connection::open(profile.join("state_5.sqlite"))
+        .unwrap()
+        .execute_batch("PRAGMA user_version = 0;")
+        .unwrap();
+    write(&profile.join("cache/blob"), "cache");
+    write(&profile.join("tmp/state"), "tmp");
+    write(&profile.join("installation_id"), "install");
+    profile
+}
+
+#[test]
+fn static_fake_home_fixture_scans_expected_profiles() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let fixture = repo_root.join(".fake-home");
+
+    let accounts = list_accounts(&fixture).unwrap();
+    assert!(accounts.iter().any(|a| a.id == "main"));
+    assert!(accounts.iter().any(|a| a.id == "a" && a.managed));
+    assert!(accounts.iter().any(|a| a.id == "b"));
+    assert!(accounts.iter().any(|a| a.id == "b-relay-a" && a.is_relay));
+
+    let sessions = list_sessions(&fixture, "a").unwrap();
+    assert!(sessions.iter().any(|s| s.id == "sid-a"));
+    assert!(sessions.iter().any(|s| s.id == "broken"));
+    assert!(sessions.iter().any(|s| s.id == "empty"));
+}
+
+#[test]
+fn session_listing_ignores_non_jsonl_binary_artifacts() {
+    let home = temp_home("session-binary-artifacts");
+    let profile = seed_codex_home(&home, "a");
+    fs::write(profile.join("sessions/.DS_Store"), [0xff, 0xfe, 0x00, 0x01]).unwrap();
+
+    let sessions = list_sessions(&home, "a").unwrap();
+
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].id, "sid-a");
+}
+
+#[test]
+fn session_listing_tolerates_invalid_utf8_in_a_jsonl_header() {
+    let home = temp_home("session-invalid-utf8");
+    let profile = seed_codex_home(&home, "a");
+    fs::write(
+        profile.join("sessions/2026/06/01/session-invalid.jsonl"),
+        [0xff, 0xfe, b'\n'],
+    )
+    .unwrap();
+
+    let sessions = list_sessions(&home, "a").unwrap();
+
+    assert!(sessions
+        .iter()
+        .any(|session| session.id == "session-invalid"));
+    assert!(sessions.iter().any(|session| session.id == "sid-a"));
+}
+
+fn seed_old_session_set(home: &Path, profile_id: &str) -> (PathBuf, Vec<PathBuf>) {
+    let profile = seed_codex_home(home, profile_id);
+    let mut paths = vec![profile.join("sessions/2026/06/01/session-a.jsonl")];
+    for suffix in 'b'..='v' {
+        let path = profile.join(format!("sessions/2026/06/01/session-{suffix}.jsonl"));
+        write(
+            &path,
+            &format!(r#"{{"session_id":"sid-{suffix}","cwd":"/tmp/{suffix}"}}"#),
+        );
+        paths.push(path);
+    }
+    let old = SystemTime::now() - Duration::from_secs(10 * 24 * 60 * 60);
+    for path in &paths {
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_times(fs::FileTimes::new().set_modified(old))
+            .unwrap();
+    }
+    (profile, paths)
+}
+
+#[test]
+fn queries_sessions_by_age_and_size_with_stable_pagination() {
+    let home = temp_home("session-query-sort");
+    let profile = seed_codex_home(&home, "a");
+    let now = SystemTime::now();
+    let cases = [
+        ("recent-small", 2, 80usize),
+        ("recent-large", 6, 256usize),
+        ("month", 20, 128usize),
+        ("old", 40, 512usize),
+    ];
+    for (id, age_days, bytes) in cases {
+        let path = profile.join(format!("sessions/2026/06/01/{id}.jsonl"));
+        write(
+            &path,
+            &format!("{{\"session_id\":\"{id}\"}}{}", " ".repeat(bytes)),
+        );
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_times(
+                fs::FileTimes::new()
+                    .set_modified(now - Duration::from_secs(age_days * 24 * 60 * 60)),
+            )
+            .unwrap();
+    }
+
+    let recent = query_sessions_page(
+        &home,
+        "a",
+        &SessionQueryRequest {
+            deletable_only: false,
+            limit: Some(1),
+            cursor: None,
+            sort: Some(SessionSort::Largest),
+            age: Some(SessionAgeFilter::Last7Days),
+        },
+    )
+    .unwrap();
+    assert_eq!(recent.items[0].id, "recent-large");
+    let recent_second = query_sessions_page(
+        &home,
+        "a",
+        &SessionQueryRequest {
+            deletable_only: false,
+            limit: Some(1),
+            cursor: recent.next_cursor,
+            sort: Some(SessionSort::Largest),
+            age: Some(SessionAgeFilter::Last7Days),
+        },
+    )
+    .unwrap();
+    assert_eq!(recent_second.items[0].id, "recent-small");
+
+    let old = query_sessions_page(
+        &home,
+        "a",
+        &SessionQueryRequest {
+            deletable_only: false,
+            limit: Some(20),
+            cursor: None,
+            sort: Some(SessionSort::Smallest),
+            age: Some(SessionAgeFilter::OlderThan30Days),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        old.items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["old"]
+    );
+}
+
+#[test]
+fn selects_all_deletable_sessions_across_pages_for_the_current_filters() {
+    let home = temp_home("session-select-all-filtered");
+    let (_profile, paths) = seed_old_session_set(&home, "a");
+
+    let selected = query_deletable_session_paths(
+        &home,
+        "a",
+        &SessionSelectionRequest {
+            age: Some(SessionAgeFilter::Last30Days),
+            query: Some("sid-v".into()),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(selected, vec![paths.last().unwrap().clone()]);
+}
+
+#[test]
+fn deletes_an_eligible_session_and_removes_codex_thread_records() {
+    let home = temp_home("session-direct-delete");
+    let (profile, paths) = seed_old_session_set(&home, "a");
+    let source = paths.last().unwrap().clone();
+    write(
+        &source,
+        "{\"type\":\"session_meta\",\"timestamp\":\"2026-06-28T00:00:00Z\",\"payload\":{\"id\":\"sid-v\"}}\n{\"type\":\"turn_context\",\"timestamp\":\"2026-06-28T00:00:01Z\",\"payload\":{\"turn_id\":\"turn-1\",\"cwd\":\"/repo/LAM\",\"model\":\"gpt-5\"}}\n{\"type\":\"event_msg\",\"timestamp\":\"2026-06-28T00:00:02Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":50,\"cached_input_tokens\":20,\"output_tokens\":10,\"total_tokens\":60},\"total_token_usage\":{\"input_tokens\":100,\"cached_input_tokens\":40,\"output_tokens\":10,\"total_tokens\":110}}}}\n",
+    );
+    fs::File::options()
+        .write(true)
+        .open(&source)
+        .unwrap()
+        .set_times(
+            fs::FileTimes::new()
+                .set_modified(SystemTime::now() - Duration::from_secs(10 * 24 * 60 * 60)),
+        )
+        .unwrap();
+    write(
+        &profile.join("session_index.jsonl"),
+        "{\"id\":\"sid-v\",\"thread_name\":\"delete me\"}\n{\"id\":\"sid-a\",\"thread_name\":\"keep me\"}\n",
+    );
+    fs::remove_file(profile.join("state_5.sqlite")).unwrap();
+    let codex_db = rusqlite::Connection::open(profile.join("state_5.sqlite")).unwrap();
+    codex_db
+        .execute_batch(
+            "PRAGMA foreign_keys=ON;
+             CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT NOT NULL);
+             CREATE TABLE thread_dynamic_tools (thread_id TEXT NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(thread_id, position));
+             CREATE TABLE thread_spawn_edges (parent_thread_id TEXT NOT NULL, child_thread_id TEXT NOT NULL PRIMARY KEY);
+             INSERT INTO threads VALUES ('sid-v', 'placeholder');
+             INSERT INTO thread_dynamic_tools VALUES ('sid-v', 0);
+             INSERT INTO thread_spawn_edges VALUES ('sid-v', 'child');",
+        )
+        .unwrap();
+    drop(codex_db);
+    let deleted = delete_sessions(
+        &home,
+        &DeleteSessionsRequest {
+            profile_id: "a".into(),
+            paths: vec![source.clone()],
+        },
+    )
+    .unwrap();
+    assert_eq!(deleted.deleted_count, 1);
+    assert!(!source.exists());
+
+    let codex_db = rusqlite::Connection::open(profile.join("state_5.sqlite")).unwrap();
+    for table in ["threads", "thread_dynamic_tools", "thread_spawn_edges"] {
+        let count: i64 = codex_db
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 0, "{table} retained a Codex ghost row");
+    }
+    let index = fs::read_to_string(profile.join("session_index.jsonl")).unwrap();
+    assert!(!index.contains("sid-v"));
+    assert!(index.contains("sid-a"));
+}
+
+#[test]
+fn delete_preflight_leaves_protected_session_files_intact() {
+    let home = temp_home("session-delete-rollback");
+    let (_profile, paths) = seed_old_session_set(&home, "a");
+    let protected = paths.first().unwrap().clone();
+    let eligible = paths.last().unwrap().clone();
+    let protected_error = delete_sessions(
+        &home,
+        &DeleteSessionsRequest {
+            profile_id: "a".into(),
+            paths: vec![eligible.clone(), protected.clone()],
+        },
+    )
+    .unwrap_err();
+    assert_eq!(protected_error.code, "SESSION_DELETE_PROTECTED");
+    assert!(eligible.exists());
+    assert!(protected.exists());
+}
+
+#[test]
+fn codex_state_delete_failure_restores_file_and_session_index() {
+    let home = temp_home("session-codex-db-rollback");
+    let (profile, paths) = seed_old_session_set(&home, "a");
+    let eligible = paths.last().unwrap().clone();
+    write(
+        &profile.join("session_index.jsonl"),
+        "{\"id\":\"sid-v\",\"thread_name\":\"must survive rollback\"}\n",
+    );
+    fs::remove_file(profile.join("state_5.sqlite")).unwrap();
+    let codex_db = rusqlite::Connection::open(profile.join("state_5.sqlite")).unwrap();
+    codex_db
+        .execute_batch(
+            "CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT NOT NULL);
+             CREATE TABLE thread_dynamic_tools (thread_id TEXT NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(thread_id, position));
+             CREATE TABLE thread_spawn_edges (parent_thread_id TEXT NOT NULL, child_thread_id TEXT NOT NULL PRIMARY KEY);
+             INSERT INTO threads VALUES ('sid-v', 'placeholder');
+             CREATE TRIGGER fail_thread_delete BEFORE DELETE ON threads BEGIN SELECT RAISE(ABORT, 'forced Codex delete failure'); END;",
+        )
+        .unwrap();
+    drop(codex_db);
+
+    let error = delete_sessions(
+        &home,
+        &DeleteSessionsRequest {
+            profile_id: "a".into(),
+            paths: vec![eligible.clone()],
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "CODEX_SESSION_DB_ERROR");
+    assert!(eligible.exists());
+    assert!(fs::read_to_string(profile.join("session_index.jsonl"))
+        .unwrap()
+        .contains("sid-v"));
+}
+
+#[test]
+fn paginates_sessions_latest_first_with_a_stable_cursor() {
+    let home = temp_home("session-pagination");
+    let profile = seed_codex_home(&home, "a");
+    for id in ["b", "c", "d", "e", "f", "g"] {
+        write(
+            &profile.join(format!("sessions/2026/06/01/session-{id}.jsonl")),
+            &format!(r#"{{"session_id":"sid-{id}","cwd":"/tmp/{id}"}}"#),
+        );
+    }
+
+    let first = list_sessions_page(
+        &home,
+        "a",
+        &SessionPageRequest {
+            limit: Some(5),
+            cursor: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(first.items.len(), 5);
+    assert!(first.next_cursor.is_some());
+
+    let second = list_sessions_page(
+        &home,
+        "a",
+        &SessionPageRequest {
+            limit: Some(5),
+            cursor: first.next_cursor.clone(),
+        },
+    )
+    .unwrap();
+    assert_eq!(second.items.len(), 2);
+    assert!(second.next_cursor.is_none());
+
+    let mut ids = first
+        .items
+        .into_iter()
+        .chain(second.items)
+        .map(|session| session.id)
+        .collect::<Vec<_>>();
+    ids.sort();
+    assert_eq!(
+        ids,
+        vec!["sid-a", "sid-b", "sid-c", "sid-d", "sid-e", "sid-f", "sid-g"]
+    );
+}
+
+#[test]
+fn rejects_an_invalid_session_page_limit() {
+    let home = temp_home("session-pagination-limit");
+    seed_codex_home(&home, "a");
+
+    let error = list_sessions_page(
+        &home,
+        "a",
+        &SessionPageRequest {
+            limit: Some(0),
+            cursor: None,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "INVALID_SESSION_PAGE_LIMIT");
+}
+
+#[test]
+fn scans_accounts_and_sessions_with_auth_identity_metadata() {
+    let home = temp_home("scan");
+    seed_codex_home(&home, "main");
+    let luna = seed_codex_home(&home, "luna");
+    write(
+        &luna.join(".managed-by-codex-session-manager.json"),
+        "{\"accountName\":\"luna\"}\n",
+    );
+
+    let accounts = list_accounts(&home).unwrap();
+    assert_eq!(accounts.len(), 2);
+    assert!(accounts.iter().any(|a| a.id == "main" && a.has_auth));
+    assert!(accounts.iter().any(|a| a.id == "luna" && a.managed));
+    let luna_account = accounts.iter().find(|a| a.id == "luna").unwrap();
+    assert_eq!(luna_account.provider_id.as_deref(), Some("openai"));
+    assert_eq!(luna_account.model.as_deref(), Some("gpt-5-codex"));
+
+    let sessions = list_sessions(&home, "luna").unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].id, "sid-a");
+    assert_eq!(sessions[0].cwd.as_deref(), Some("/tmp/project one"));
+}
+
+#[test]
+fn parses_session_edge_cases_without_crashing() {
+    let home = temp_home("session-edges");
+    let profile = seed_codex_home(&home, "a");
+    write(
+        &profile.join("sessions/2026/06/01/json-session.json"),
+        "{\"sessionId\":\"json-id\",\"working_directory\":\"/tmp/json\",\"title\":\"JSON title\"}",
+    );
+    write(&profile.join("sessions/2026/06/01/empty.jsonl"), "");
+    write(
+        &profile.join("sessions/2026/06/01/broken.jsonl"),
+        "{not-json}\n{\"summary\":\"still parse fallback text\"}\n",
+    );
+    write(
+        &profile.join("sessions/2026/06/01/no-cwd.jsonl"),
+        "{\"session_id\":\"no-cwd\",\"summary\":\"No cwd here\"}\n",
+    );
+
+    let sessions = list_sessions(&home, "a").unwrap();
+    assert!(sessions.iter().any(|s| s.id == "json-id"));
+    assert!(sessions.iter().any(|s| s.id == "empty"));
+    assert!(sessions.iter().any(|s| s.id == "broken"));
+    let no_cwd = sessions.iter().find(|s| s.id == "no-cwd").unwrap();
+    assert_eq!(no_cwd.cwd, None);
+}
+
+#[test]
+fn parses_session_summary_with_multibyte_utf8_without_panicking() {
+    let home = temp_home("session-utf8");
+    let profile = seed_codex_home(&home, "a");
+    let long_chinese = "按你这次澄清的语义已经改好了：直接从 medbench_request_dedupe 命中 done 一律等待 request_dedupe_ready_delay_sec 其他路径新请求没命中 dedupe 命中 running 后等生成完成 内存版复用 这些内容还要再核对一遍避免截断时按字节切开多字节字符导致 panic";
+    write(
+        &profile.join("sessions/2026/06/01/utf8.jsonl"),
+        &format!(r#"{{"session_id":"utf8-session","summary":"{long_chinese}"}}"#),
+    );
+
+    let sessions = list_sessions(&home, "a").unwrap();
+    let utf8 = sessions.iter().find(|s| s.id == "utf8-session").unwrap();
+    assert!(utf8.summary.as_ref().is_some_and(|s| s.contains('按')));
+    assert!(utf8
+        .summary
+        .as_ref()
+        .is_some_and(|s| s.ends_with("...") || s.chars().count() <= 240));
+}
+
+#[test]
+fn parses_rollout_session_meta_id_from_file_head_for_resume() {
+    let home = temp_home("session-rollout-id");
+    let profile = seed_codex_home(&home, "a");
+    let session_id = "019e8c4b-cb7f-7851-9557-b903a39a6c4f";
+    let path = profile.join(format!(
+        "sessions/2026/06/03/rollout-2026-06-03T15-03-58-{session_id}.jsonl"
+    ));
+    let large_tail = "x".repeat(300 * 1024);
+    write(
+        &path,
+        &format!(
+            "{{\"timestamp\":\"2026-06-03T07:03:58.468Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"{session_id}\",\"cwd\":\"/tmp/project\",\"model_provider\":\"openai\",\"model\":\"gpt-5-codex\"}}}}\n{{\"type\":\"event_msg\",\"payload\":{{\"type\":\"note\",\"message\":\"{large_tail}\"}}}}\n"
+        ),
+    );
+
+    let sessions = list_sessions(&home, "a").unwrap();
+    let rollout = sessions
+        .iter()
+        .find(|session| session.path == path)
+        .unwrap();
+    assert_eq!(rollout.id, session_id);
+}
+
+#[test]
+fn parses_session_thread_name_from_codex_session_index() {
+    let home = temp_home("session-thread-name");
+    let profile = seed_codex_home(&home, "a");
+    let indexed_id = "019ed9fd-9212-71c3-9a6a-b8e273a8c68b";
+    let unindexed_id = "019ed9fd-0000-7000-9000-000000000000";
+    write(
+        &profile.join("session_index.jsonl"),
+        &format!(
+            "{{\"id\":\"{indexed_id}\",\"thread_name\":\"Implement relay session picker\",\"updated_at\":\"2026-06-18T09:08:54Z\"}}\n{{\"id\":\"ignored\",\"thread_name\":\"\",\"updated_at\":\"2026-06-18T09:08:55Z\"}}\n{{not-json}}\n"
+        ),
+    );
+    let indexed_path = profile.join(format!(
+        "sessions/2026/06/18/rollout-2026-06-18T17-08-54-{indexed_id}.jsonl"
+    ));
+    write(
+        &indexed_path,
+        &format!(
+            "{{\"timestamp\":\"2026-06-18T09:08:54Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"{indexed_id}\",\"cwd\":\"/tmp/project\"}}}}\n"
+        ),
+    );
+    let unindexed_path = profile.join(format!(
+        "sessions/2026/06/18/rollout-2026-06-18T17-09-54-{unindexed_id}.jsonl"
+    ));
+    write(
+        &unindexed_path,
+        &format!(
+            "{{\"timestamp\":\"2026-06-18T09:09:54Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"{unindexed_id}\",\"cwd\":\"/tmp/project\"}}}}\n"
+        ),
+    );
+
+    let sessions = list_sessions(&home, "a").unwrap();
+    let indexed = sessions
+        .iter()
+        .find(|session| session.id == indexed_id)
+        .unwrap();
+    assert_eq!(
+        indexed.thread_name.as_deref(),
+        Some("Implement relay session picker")
+    );
+    let unindexed = sessions
+        .iter()
+        .find(|session| session.id == unindexed_id)
+        .unwrap();
+    assert_eq!(unindexed.thread_name, None);
+}
+
+#[test]
+fn creates_managed_account_with_plan_and_safe_wrapper() {
+    let home = temp_home("create-account");
+    let req = CreateAccountRequest {
+        name: "luna".into(),
+        copy_config_from: None,
+        overwrite_wrapper: false,
+    };
+    let plan = create_account_plan(&home, &req).unwrap();
+    assert!(plan.operations.iter().any(|op| op.contains(".codex-luna")));
+    assert!(!home.join(".codex-luna").exists());
+
+    let result = execute_create_account(&home, &req).unwrap();
+    assert!(result.home_path.exists());
+    assert!(result.wrapper_path.exists());
+    assert!(result
+        .home_path
+        .join(".managed-by-agent-workspace.json")
+        .exists());
+    let metadata =
+        fs::read_to_string(result.home_path.join(".managed-by-agent-workspace.json")).unwrap();
+    assert!(metadata.contains("\"managedBy\": \"LAM\""));
+    assert!(!metadata.contains("LocalAgentManager"));
+    assert!(!result.home_path.join("auth.json").exists());
+    let wrapper = fs::read_to_string(result.wrapper_path).unwrap();
+    assert!(wrapper.contains("export CODEX_HOME=\"$HOME/.codex-luna\""));
+    assert!(wrapper.contains("exec \"$CODEX_BIN\" \"$@\""));
+    assert!(wrapper.contains("codexLaunchPermissionPreset"));
+    assert!(wrapper.contains("--approve-for-me"));
+    assert!(wrapper.contains("--dangerously-bypass-approvals-and-sandbox"));
+    assert!(!wrapper.contains("lam codex"));
+}
+
+#[test]
+fn repair_managed_wrappers_replaces_stale_and_missing_files_only() {
+    let home = temp_home("repair-managed-wrappers");
+    for name in ["stale", "missing"] {
+        execute_create_account(
+            &home,
+            &CreateAccountRequest {
+                name: name.into(),
+                copy_config_from: None,
+                overwrite_wrapper: false,
+            },
+        )
+        .unwrap();
+    }
+    write_executable(
+        &home.join("bin/codex-stale"),
+        "#!/bin/sh\nexec lam \"$@\"\n",
+    );
+    fs::remove_file(home.join("bin/codex-missing")).unwrap();
+    seed_codex_home(&home, "external");
+    let external = home.join("bin/codex-external");
+    write_executable(&external, "#!/bin/sh\necho external\n");
+
+    let repaired = repair_managed_wrappers(&home).unwrap();
+
+    assert_eq!(repaired.len(), 2);
+    for name in ["stale", "missing"] {
+        let wrapper = fs::read_to_string(home.join(format!("bin/codex-{name}"))).unwrap();
+        assert!(wrapper.contains("exec \"$CODEX_BIN\" \"$@\""));
+        assert!(!wrapper.contains("lam codex"));
+    }
+    assert_eq!(
+        fs::read_to_string(&external).unwrap(),
+        "#!/bin/sh\necho external\n"
+    );
+    assert!(repair_managed_wrappers(&home).unwrap().is_empty());
+}
+
+#[test]
+fn new_profile_wrapper_lands_in_the_first_path_visible_dir() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("wrapper-prefers-local-bin");
+    let original = std::env::var_os("LAM_LOGIN_SHELL_PATH");
+    std::env::set_var(
+        "LAM_LOGIN_SHELL_PATH",
+        format!("/usr/bin:{}", home.join(".local/bin").display()),
+    );
+
+    let result = execute_create_account(
+        &home,
+        &CreateAccountRequest {
+            name: "luna".into(),
+            copy_config_from: None,
+            overwrite_wrapper: false,
+        },
+    );
+
+    restore_env_var("LAM_LOGIN_SHELL_PATH", original);
+
+    let result = result.unwrap();
+    assert_eq!(result.wrapper_path, home.join(".local/bin/codex-luna"));
+    assert!(home.join(".local/bin/codex-luna").exists());
+    assert!(!home.join("bin/codex-luna").exists());
+    assert!(result.warnings.is_empty());
+}
+
+#[test]
+fn creating_a_profile_warns_when_no_wrapper_dir_is_on_path() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("wrapper-path-warning");
+    let original = std::env::var_os("LAM_LOGIN_SHELL_PATH");
+    std::env::set_var("LAM_LOGIN_SHELL_PATH", "/usr/bin:/bin");
+
+    let result = execute_create_account(
+        &home,
+        &CreateAccountRequest {
+            name: "luna".into(),
+            copy_config_from: None,
+            overwrite_wrapper: false,
+        },
+    );
+
+    restore_env_var("LAM_LOGIN_SHELL_PATH", original);
+
+    let result = result.unwrap();
+    assert_eq!(result.wrapper_path, home.join("bin/codex-luna"));
+    assert!(result
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("export PATH=\"$HOME/bin:$PATH\"")));
+}
+
+#[test]
+fn importing_a_session_profile_warns_when_no_wrapper_dir_is_on_path() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("session-profile-path-warning");
+    let original = std::env::var_os("LAM_LOGIN_SHELL_PATH");
+    std::env::set_var("LAM_LOGIN_SHELL_PATH", "/usr/bin:/bin");
+
+    let result = localagentmanager_core::add_session_profile_account(
+        &home,
+        &localagentmanager_core::AddSessionProfileAccountRequest {
+            account_id: "luna".into(),
+            session_json: serde_json::json!({ "accessToken": "at-luna" })
+                .as_object()
+                .unwrap()
+                .clone(),
+            overwrite_wrapper: false,
+        },
+    );
+
+    restore_env_var("LAM_LOGIN_SHELL_PATH", original);
+
+    let result = result.unwrap();
+    assert_eq!(result.wrapper_path, home.join("bin/codex-luna"));
+    assert!(result
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("export PATH=\"$HOME/bin:$PATH\"")));
+}
+
+#[test]
+fn repair_managed_wrappers_migrates_wrappers_into_the_path_visible_dir() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("wrapper-migration");
+    let original = std::env::var_os("LAM_LOGIN_SHELL_PATH");
+    std::env::set_var("LAM_LOGIN_SHELL_PATH", "/usr/bin:/bin");
+    execute_create_account(
+        &home,
+        &CreateAccountRequest {
+            name: "luna".into(),
+            copy_config_from: None,
+            overwrite_wrapper: false,
+        },
+    )
+    .unwrap();
+    let created_in_legacy_dir = home.join("bin/codex-luna").exists();
+
+    std::env::set_var(
+        "LAM_LOGIN_SHELL_PATH",
+        format!("/usr/bin:{}", home.join(".local/bin").display()),
+    );
+    let repaired = repair_managed_wrappers(&home);
+    let idempotent = repair_managed_wrappers(&home);
+
+    restore_env_var("LAM_LOGIN_SHELL_PATH", original);
+
+    assert!(created_in_legacy_dir);
+    assert_eq!(repaired.unwrap(), vec![home.join(".local/bin/codex-luna")]);
+    assert!(home.join(".local/bin/codex-luna").exists());
+    assert!(!home.join("bin/codex-luna").exists());
+    assert!(idempotent.unwrap().is_empty());
+}
+
+#[test]
+fn renames_managed_account_home_wrapper_and_metadata() {
+    let home = temp_home("rename-account");
+    execute_create_account(
+        &home,
+        &CreateAccountRequest {
+            name: "b".into(),
+            copy_config_from: None,
+            overwrite_wrapper: false,
+        },
+    )
+    .unwrap();
+    write(&home.join(".codex-b/auth.json"), r#"{"token":"secret"}"#);
+
+    let rename = RenameAccountRequest {
+        from_profile_id: "b".into(),
+        to_name: "liming".into(),
+        overwrite_wrapper: false,
+    };
+    let plan = rename_account_plan(&home, &rename).unwrap();
+    assert!(plan
+        .operations
+        .iter()
+        .any(|op| op.contains(".codex-b") && op.contains(".codex-liming")));
+    assert!(plan
+        .operations
+        .iter()
+        .any(|op| op.contains("codex-b") && op.contains("codex-liming")));
+    assert!(plan.blocked.iter().any(|item| item == "auth.json"));
+
+    let result = execute_rename_account(&home, &rename).unwrap();
+    assert_eq!(result.profile_id, "liming");
+    assert!(!home.join(".codex-b").exists());
+    assert!(home.join(".codex-liming").exists());
+    assert!(home.join(".codex-liming/auth.json").exists());
+    assert!(!home.join("bin/codex-b").exists());
+    assert!(home.join("bin/codex-liming").exists());
+
+    let wrapper = fs::read_to_string(result.wrapper_path).unwrap();
+    assert!(wrapper.contains("export CODEX_HOME=\"$HOME/.codex-liming\""));
+    assert!(!wrapper.contains(".codex-b"));
+
+    let marker =
+        fs::read_to_string(home.join(".codex-liming/.managed-by-agent-workspace.json")).unwrap();
+    assert!(marker.contains("\"accountName\": \"liming\""));
+    assert!(marker.contains(".codex-liming"));
+    assert!(marker.contains("codex-liming"));
+
+    let accounts = list_accounts(&home).unwrap();
+    assert!(!accounts.iter().any(|account| account.id == "b"));
+    assert!(accounts
+        .iter()
+        .any(|account| account.id == "liming" && account.managed));
+}
+
+#[test]
+fn rename_account_blocks_unsafe_targets() {
+    let home = temp_home("rename-blocks");
+    execute_create_account(
+        &home,
+        &CreateAccountRequest {
+            name: "b".into(),
+            copy_config_from: None,
+            overwrite_wrapper: false,
+        },
+    )
+    .unwrap();
+    seed_codex_home(&home, "liming");
+    seed_codex_home(&home, "main");
+
+    let existing_home = rename_account_plan(
+        &home,
+        &RenameAccountRequest {
+            from_profile_id: "b".into(),
+            to_name: "liming".into(),
+            overwrite_wrapper: false,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(existing_home.code, "TARGET_ACCOUNT_ALREADY_EXISTS");
+
+    let main_blocked = rename_account_plan(
+        &home,
+        &RenameAccountRequest {
+            from_profile_id: "main".into(),
+            to_name: "primary".into(),
+            overwrite_wrapper: false,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(main_blocked.code, "MAIN_ACCOUNT_RENAME_BLOCKED");
+}
+
+#[test]
+fn rename_account_blocks_wrapper_conflict_without_overwrite() {
+    let home = temp_home("rename-wrapper-conflict");
+    execute_create_account(
+        &home,
+        &CreateAccountRequest {
+            name: "b".into(),
+            copy_config_from: None,
+            overwrite_wrapper: false,
+        },
+    )
+    .unwrap();
+    write_executable(
+        &home.join("bin/codex-liming"),
+        "#!/usr/bin/env bash\nexit 0\n",
+    );
+
+    let err = rename_account_plan(
+        &home,
+        &RenameAccountRequest {
+            from_profile_id: "b".into(),
+            to_name: "liming".into(),
+            overwrite_wrapper: false,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(err.code, "WRAPPER_ALREADY_EXISTS");
+
+    let plan = rename_account_plan(
+        &home,
+        &RenameAccountRequest {
+            from_profile_id: "b".into(),
+            to_name: "liming".into(),
+            overwrite_wrapper: true,
+        },
+    )
+    .unwrap();
+    assert!(plan
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("wrapper")));
+}
+
+#[test]
+fn creates_relay_without_touching_runtime_profile() {
+    let home = temp_home("relay");
+    let runtime = seed_codex_home(&home, "b");
+    let before = fs::read_to_string(runtime.join("history.jsonl")).unwrap();
+    seed_codex_home(&home, "a");
+
+    let req = CreateRelayRequest {
+        runtime_profile_id: "b".into(),
+        source_profile_id: "a".into(),
+        name: None,
+        provider_policy: "inherit_runtime".into(),
+        overwrite_wrapper: false,
+    };
+    let plan = create_relay_plan(&home, &req).unwrap();
+    assert!(plan
+        .operations
+        .iter()
+        .any(|op| op.contains(".codex-b-relay-a")));
+    let result = execute_create_relay(&home, &req).unwrap();
+
+    assert!(result.home_path.ends_with(".codex-b-relay-a"));
+    assert!(result
+        .home_path
+        .join(".managed-by-agent-workspace.json")
+        .exists());
+    assert_eq!(
+        fs::read_to_string(runtime.join("history.jsonl")).unwrap(),
+        before
+    );
+}
+
+#[test]
+fn relay_resume_copies_missing_session_and_builds_target_resume() {
+    let home = temp_home("relay-resume-copy");
+    let source = seed_codex_home(&home, "a");
+    seed_codex_home(&home, "b");
+    let source_session = source.join("sessions/2026/06/01/relay.jsonl");
+    write(
+        &source_session,
+        "{\"session_id\":\"relay-sid\",\"cwd\":\"/tmp/relay\",\"summary\":\"continue\"}\n",
+    );
+    let target_session = home.join(".codex-b/sessions/2026/06/01/relay.jsonl");
+    assert!(!target_session.exists());
+
+    let result = relay_resume_session(
+        &home,
+        &RelayResumeRequest {
+            from_profile_id: "a".into(),
+            to_profile_id: "b".into(),
+            session_id: "relay-sid".into(),
+            cwd: Some("/tmp/relay".into()),
+            diverged_strategy: None,
+            confirm_compatibility_loss: false,
+            target_model: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.action, "copied");
+    assert!(target_session.exists());
+    assert_eq!(
+        fs::read_to_string(&target_session).unwrap(),
+        fs::read_to_string(&source_session).unwrap()
+    );
+    assert!(result.resume.command.contains("CODEX_HOME="));
+    assert!(result.resume.command.contains(".codex-b"));
+    assert!(result.resume.command.contains(" resume"));
+    assert!(result.resume.command.contains("relay-sid"));
+    assert_eq!(result.backup_path, None);
+}
+
+#[test]
+fn relay_resume_extends_target_when_target_is_source_prefix() {
+    let home = temp_home("relay-resume-prefix");
+    let source = seed_codex_home(&home, "a");
+    let target = seed_codex_home(&home, "b");
+    let rel = "sessions/2026/06/01/relay.jsonl";
+    let first = "{\"session_id\":\"relay-sid\",\"cwd\":\"/tmp/relay\"}\n";
+    let second = "{\"type\":\"response\",\"text\":\"new from source\"}\n";
+    write(&source.join(rel), &format!("{first}{second}"));
+    write(&target.join(rel), first);
+
+    let result = relay_resume_session(
+        &home,
+        &RelayResumeRequest {
+            from_profile_id: "a".into(),
+            to_profile_id: "b".into(),
+            session_id: "relay-sid".into(),
+            cwd: Some("/tmp/relay".into()),
+            diverged_strategy: None,
+            confirm_compatibility_loss: false,
+            target_model: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.action, "extended");
+    assert_eq!(
+        fs::read_to_string(target.join(rel)).unwrap(),
+        format!("{first}{second}")
+    );
+    assert!(result.backup_path.is_some());
+    assert!(result.backup_path.unwrap().exists());
+}
+
+#[test]
+fn relay_resume_skips_when_target_already_contains_source() {
+    let home = temp_home("relay-resume-skip");
+    let source = seed_codex_home(&home, "a");
+    let target = seed_codex_home(&home, "b");
+    let rel = "sessions/2026/06/01/relay.jsonl";
+    let first = "{\"session_id\":\"relay-sid\",\"cwd\":\"/tmp/relay\"}\n";
+    let second = "{\"type\":\"response\",\"text\":\"target is ahead\"}\n";
+    write(&source.join(rel), first);
+    write(&target.join(rel), &format!("{first}{second}"));
+
+    let result = relay_resume_session(
+        &home,
+        &RelayResumeRequest {
+            from_profile_id: "a".into(),
+            to_profile_id: "b".into(),
+            session_id: "relay-sid".into(),
+            cwd: Some("/tmp/relay".into()),
+            diverged_strategy: None,
+            confirm_compatibility_loss: false,
+            target_model: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.action, "already_current");
+    assert_eq!(
+        fs::read_to_string(target.join(rel)).unwrap(),
+        format!("{first}{second}")
+    );
+    assert_eq!(result.backup_path, None);
+}
+
+#[test]
+fn relay_resume_rejects_diverged_session_and_keeps_backup() {
+    let home = temp_home("relay-resume-conflict");
+    let source = seed_codex_home(&home, "a");
+    let target = seed_codex_home(&home, "b");
+    let rel = "sessions/2026/06/01/relay.jsonl";
+    let first = "{\"session_id\":\"relay-sid\",\"cwd\":\"/tmp/relay\"}\n";
+    write(
+        &source.join(rel),
+        &format!("{first}{{\"source\":\"branch\"}}\n"),
+    );
+    write(
+        &target.join(rel),
+        &format!("{first}{{\"target\":\"branch\"}}\n"),
+    );
+
+    let err = relay_resume_session(
+        &home,
+        &RelayResumeRequest {
+            from_profile_id: "a".into(),
+            to_profile_id: "b".into(),
+            session_id: "relay-sid".into(),
+            cwd: Some("/tmp/relay".into()),
+            diverged_strategy: None,
+            confirm_compatibility_loss: false,
+            target_model: None,
+        },
+    )
+    .unwrap_err();
+
+    assert_eq!(err.code, "SESSION_DIVERGED");
+    assert!(target
+        .join("sessions/2026/06/01")
+        .read_dir()
+        .unwrap()
+        .any(|entry| entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with("relay.jsonl.backup.")));
+    assert_eq!(
+        fs::read_to_string(target.join(rel)).unwrap(),
+        format!("{first}{{\"target\":\"branch\"}}\n")
+    );
+}
+
+#[test]
+fn relay_resume_diverged_prefer_source_replaces_target_with_backup() {
+    let home = temp_home("relay-resume-prefer-source");
+    let source = seed_codex_home(&home, "a");
+    let target = seed_codex_home(&home, "b");
+    let rel = "sessions/2026/06/01/relay.jsonl";
+    let first = "{\"session_id\":\"relay-sid\",\"cwd\":\"/tmp/relay\"}\n";
+    let source_body = format!("{first}{{\"source\":\"branch\"}}\n");
+    write(&source.join(rel), &source_body);
+    write(
+        &target.join(rel),
+        &format!("{first}{{\"target\":\"branch\"}}\n"),
+    );
+
+    let result = relay_resume_session(
+        &home,
+        &RelayResumeRequest {
+            from_profile_id: "a".into(),
+            to_profile_id: "b".into(),
+            session_id: "relay-sid".into(),
+            cwd: Some("/tmp/relay".into()),
+            diverged_strategy: Some("prefer_source".into()),
+            confirm_compatibility_loss: false,
+            target_model: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.action, "prefer_source");
+    assert_eq!(fs::read_to_string(target.join(rel)).unwrap(), source_body);
+    assert!(result.backup_path.is_some());
+}
+
+#[test]
+fn relay_resume_diverged_prefer_target_keeps_target_and_copies_source_fork() {
+    let home = temp_home("relay-resume-prefer-target");
+    let source = seed_codex_home(&home, "a");
+    let target = seed_codex_home(&home, "b");
+    let rel = "sessions/2026/06/01/relay.jsonl";
+    let first = "{\"session_id\":\"relay-sid\",\"cwd\":\"/tmp/relay\"}\n";
+    let target_body = format!("{first}{{\"target\":\"branch\"}}\n");
+    write(
+        &source.join(rel),
+        &format!("{first}{{\"source\":\"branch\"}}\n"),
+    );
+    write(&target.join(rel), &target_body);
+
+    let result = relay_resume_session(
+        &home,
+        &RelayResumeRequest {
+            from_profile_id: "a".into(),
+            to_profile_id: "b".into(),
+            session_id: "relay-sid".into(),
+            cwd: Some("/tmp/relay".into()),
+            diverged_strategy: Some("prefer_target".into()),
+            confirm_compatibility_loss: false,
+            target_model: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.action, "prefer_target");
+    assert_eq!(fs::read_to_string(target.join(rel)).unwrap(), target_body);
+    assert!(result.fork_path.unwrap().exists());
+}
+
+#[test]
+fn relay_resume_diverged_summarize_fork_writes_target_handoff_without_overwrite() {
+    let home = temp_home("relay-resume-summarize-fork");
+    let source = seed_codex_home(&home, "a");
+    let target = seed_codex_home(&home, "b");
+    set_codex_launch_permission_preset(&home, CodexLaunchPermissionPreset::ApproveForMe).unwrap();
+    let rel = "sessions/2026/06/01/relay.jsonl";
+    let first = "{\"session_id\":\"relay-sid\",\"cwd\":\"/tmp/relay\"}\n";
+    let target_body = format!("{first}{{\"target\":\"branch\"}}\n");
+    let early = r#"{"type":"event_msg","payload":{"type":"user_message","message":"Preserve my original requirement"}}"#;
+    let events = (0..100)
+        .map(|i| format!("{{\"event\":{i}}}\n"))
+        .collect::<String>();
+    write(&source.join(rel), &format!("{first}{early}\n{events}"));
+    write(&target.join(rel), &target_body);
+
+    let result = relay_resume_session(
+        &home,
+        &RelayResumeRequest {
+            from_profile_id: "a".into(),
+            to_profile_id: "b".into(),
+            session_id: "relay-sid".into(),
+            cwd: Some("/tmp/relay".into()),
+            diverged_strategy: Some("summarize_fork_with_target_account".into()),
+            confirm_compatibility_loss: false,
+            target_model: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.action, "summarize_fork_with_target_account");
+    assert_eq!(fs::read_to_string(target.join(rel)).unwrap(), target_body);
+    let handoff = result.handoff_path.unwrap();
+    assert!(handoff.exists());
+    let body = fs::read_to_string(&handoff).unwrap();
+    assert!(body.contains("Preserve my original requirement"));
+    assert!(body.contains("\"event\":99"));
+    assert!(body.contains("Target account b"));
+    assert!(body.contains("relay-sid"));
+    assert!(!result.resume.command.contains(" exec resume"));
+    assert!(result.resume.command.contains(" resume relay-sid "));
+    assert_eq!(result.resume.command.matches("--approve-for-me").count(), 1);
+    assert!(result.resume.command.contains(".codex-b"));
+    let repeated = relay_resume_session(
+        &home,
+        &RelayResumeRequest {
+            from_profile_id: "a".into(),
+            to_profile_id: "b".into(),
+            session_id: "relay-sid".into(),
+            cwd: Some("/tmp/relay".into()),
+            diverged_strategy: Some("summarize_fork_with_target_account".into()),
+            confirm_compatibility_loss: false,
+            target_model: None,
+        },
+    )
+    .unwrap();
+    assert_ne!(repeated.handoff_path.unwrap(), handoff);
+    assert_eq!(fs::read_to_string(target.join(rel)).unwrap(), target_body);
+}
+
+#[test]
+fn resume_command_is_escaped_and_has_no_arbitrary_shell_input() {
+    let home = temp_home("resume");
+    seed_codex_home(&home, "a");
+    set_codex_launch_permission_preset(&home, CodexLaunchPermissionPreset::FullAccess).unwrap();
+    let command = build_resume_command(
+        &home,
+        &ResumeCommandRequest {
+            profile_id: "a".into(),
+            session_id: Some("sid-'a".into()),
+            cwd: Some("/tmp/project 'one'".into()),
+        },
+    )
+    .unwrap();
+
+    assert!(command.command.contains("CODEX_HOME="));
+    assert!(command.command.contains(" resume"));
+    assert!(command
+        .command
+        .contains("--dangerously-bypass-approvals-and-sandbox"));
+    assert!(command.command.contains("'sid-'\\''a'"));
+    assert!(command.command.contains("'/tmp/project '\\''one'\\'''"));
+    assert!(command.side_effects.iter().any(|s| s.contains(".codex-a")));
+
+    let script = terminal_applescript(&command.command);
+    assert!(script.contains("tell application \"Terminal\""));
+    assert!(script.contains("do script"));
+}
+
+#[test]
+fn terminal_target_settings_preserve_existing_settings() {
+    let home = temp_home("terminal-target-settings");
+    let settings_path = home.join(".lam/config/settings.json");
+    fs::create_dir_all(settings_path.parent().unwrap()).unwrap();
+    fs::write(&settings_path, r#"{"hideDockIcon":true}"#).unwrap();
+
+    assert_eq!(selected_terminal_target_id(&home), "terminal");
+    set_selected_terminal_target_id(&home, "ghostty").unwrap();
+
+    assert_eq!(selected_terminal_target_id(&home), "ghostty");
+    let settings: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(settings_path).unwrap()).unwrap();
+    assert_eq!(settings["hideDockIcon"], true);
+    assert_eq!(settings["terminalTargetId"], "ghostty");
+}
+
+#[test]
+fn terminal_target_discovery_always_includes_terminal_default() {
+    let targets = list_terminal_targets();
+    let terminal = targets
+        .iter()
+        .find(|target| target.id == "terminal")
+        .unwrap();
+
+    assert_eq!(terminal.display_name, "Terminal.app");
+    assert!(terminal.installed);
+}
+
+#[test]
+fn accounts_cache_roundtrip_and_fast_read() {
+    let home = temp_home("accounts-cache");
+    seed_codex_home(&home, "a");
+    seed_codex_home(&home, "b");
+
+    assert!(list_cached_accounts(&home).unwrap().is_empty());
+
+    let scanned = list_accounts(&home).unwrap();
+    assert_eq!(scanned.len(), 2);
+
+    let cached = list_cached_accounts(&home).unwrap();
+    assert_eq!(cached.len(), 2);
+    assert!(cached.iter().any(|account| account.id == "a"));
+    assert!(cached.iter().any(|account| account.id == "b"));
+}
+
+#[test]
+fn accounts_include_renewal_notes() {
+    let home = temp_home("account-notes");
+    seed_codex_home(&home, "a");
+    seed_codex_home(&home, "b");
+
+    let updated = update_account_note(
+        &home,
+        &AccountNoteUpdate {
+            profile_id: "a".into(),
+            renewal_date: Some("2026-07-15".into()),
+            note: Some("Team Plus renewal".into()),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(updated.id, "a");
+    assert_eq!(updated.renewal_date.as_deref(), Some("2026-07-15"));
+    assert_eq!(updated.note.as_deref(), Some("Team Plus renewal"));
+
+    let accounts = list_accounts(&home).unwrap();
+    let account = accounts.iter().find(|account| account.id == "a").unwrap();
+    assert_eq!(account.renewal_date.as_deref(), Some("2026-07-15"));
+    assert_eq!(account.note.as_deref(), Some("Team Plus renewal"));
+    assert_eq!(
+        accounts
+            .iter()
+            .find(|account| account.id == "b")
+            .unwrap()
+            .renewal_date,
+        None
+    );
+
+    let cached = list_cached_accounts(&home).unwrap();
+    assert!(cached
+        .iter()
+        .any(|account| account.id == "a" && account.renewal_date.as_deref() == Some("2026-07-15")));
+}
+
+#[test]
+fn update_account_note_validates_input() {
+    let home = temp_home("account-notes-validation");
+    seed_codex_home(&home, "a");
+
+    let unknown = update_account_note(
+        &home,
+        &AccountNoteUpdate {
+            profile_id: "missing".into(),
+            renewal_date: Some("2026-07-15".into()),
+            note: None,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(unknown.code, "ACCOUNT_NOT_FOUND");
+
+    let invalid_date = update_account_note(
+        &home,
+        &AccountNoteUpdate {
+            profile_id: "a".into(),
+            renewal_date: Some("2026-13-01".into()),
+            note: None,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(invalid_date.code, "ACCOUNT_RENEWAL_DATE_INVALID");
+
+    let too_long = update_account_note(
+        &home,
+        &AccountNoteUpdate {
+            profile_id: "a".into(),
+            renewal_date: None,
+            note: Some("x".repeat(501)),
+        },
+    )
+    .unwrap_err();
+    assert_eq!(too_long.code, "ACCOUNT_NOTE_TOO_LONG");
+}
+
+#[test]
+fn quota_snapshot_uses_unavailable_state_without_fake_realtime_values() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota");
+    seed_codex_home(&home, "a");
+    let snapshot = get_profile_quota(&home, "a", false).unwrap();
+
+    assert_eq!(snapshot.profile_id, "a");
+    assert_eq!(snapshot.source, "usage_unavailable");
+    assert!(snapshot.fetched_at > 0);
+    assert!(serde_json::to_value(&snapshot)
+        .unwrap()
+        .get("activityTokens")
+        .is_none());
+    assert_eq!(snapshot.remaining_percent, None);
+    assert_eq!(snapshot.reset_at, None);
+
+    let refreshed = refresh_all_quotas(&home, None).unwrap();
+    assert!(refreshed.snapshots.iter().any(|s| s.profile_id == "a"));
+}
+
+#[test]
+fn quota_skips_accounts_without_auth_material() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-no-auth");
+    seed_codex_home(&home, "a");
+    // Create a profile directory with codex signals but no auth.json / auth-f.json.
+    let no_auth_home = home.join(".codex-nologin");
+    fs::create_dir_all(no_auth_home.join("sessions")).unwrap();
+    write(
+        &no_auth_home.join("config.toml"),
+        "model = \"gpt-5-codex\"\n",
+    );
+
+    // force refresh must not spawn an app-server probe for the unauthenticated profile.
+    let snapshot = get_profile_quota(&home, "nologin", true).unwrap();
+    assert_eq!(snapshot.profile_id, "nologin");
+    assert_eq!(snapshot.source, "usage_unavailable");
+    assert_eq!(snapshot.staleness, "unavailable");
+    assert!(snapshot
+        .alerts
+        .iter()
+        .any(|alert| alert.contains("Login needed")));
+
+    // Bulk refresh includes only the authenticated profile snapshot.
+    let refreshed = refresh_all_quotas(&home, None).unwrap();
+    assert!(refreshed.snapshots.iter().any(|s| s.profile_id == "a"));
+    assert!(!refreshed
+        .snapshots
+        .iter()
+        .any(|s| s.profile_id == "nologin"));
+}
+
+#[test]
+fn refresh_all_quotas_skips_external_api_bindings() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-external-api");
+    seed_codex_home(&home, "external");
+    seed_external_api_binding(&home, "external");
+
+    let refreshed = refresh_all_quotas(&home, Some(vec!["external".into()])).unwrap();
+
+    assert!(refreshed.snapshots.is_empty());
+    assert!(refreshed.warnings.is_empty());
+}
+
+#[test]
+fn direct_quota_refresh_skips_external_api_collector() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-external-api-direct");
+    seed_codex_home(&home, "external");
+    seed_external_api_binding(&home, "external");
+    let marker = home.join("collector-invoked");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        &format!("#!/bin/sh\n/usr/bin/touch '{}'\nexit 1\n", marker.display()),
+    );
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", &bin);
+
+    let snapshot = get_profile_quota(&home, "external", true).unwrap();
+
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::remove_var("LAM_CODEX_BIN");
+    assert!(!marker.exists());
+    assert_eq!(snapshot.source, "external_api_quota_unsupported");
+    assert!(snapshot.alerts.is_empty());
+}
+
+fn seed_external_api_binding(home: &Path, profile_id: &str) {
+    let root = ProviderHubPaths::for_home(&home)
+        .ensure_canonical_root()
+        .unwrap();
+    let store = VersionedFileStore::new(
+        root.join("bindings.json"),
+        InstallationLock::new(root.join("provider-hub.lock"), Duration::from_secs(1)),
+        1,
+        StoreOptions::default(),
+    );
+    let projection = ManagedConfigProjection {
+        config_path: home
+            .join(format!(".codex-{profile_id}/config.toml"))
+            .to_string_lossy()
+            .into_owned(),
+        ownership: ProjectionOwnership::Managed,
+        before_hash: "before".into(),
+        applied_hash: "applied".into(),
+        previous_values: BTreeMap::new(),
+        managed_values: BTreeMap::new(),
+        provider_table_created_by_lam: true,
+    };
+    store
+        .compare_and_swap(
+            0,
+            &ProfileBindingCollection {
+                bindings: vec![ProfileProviderBinding::new_for_test(
+                    profile_id,
+                    "account-external",
+                    "model-a",
+                    projection,
+                    1,
+                    "fingerprint",
+                )],
+            },
+        )
+        .unwrap();
+}
+
+#[test]
+fn quota_app_server_attempt_falls_back_without_hanging_or_faking_realtime() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-app-server");
+    seed_codex_home(&home, "a");
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", "/definitely/not/codex");
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::remove_var("LAM_CODEX_BIN");
+
+    assert_eq!(snapshot.source, "usage_unavailable");
+    assert_eq!(snapshot.remaining_percent, None);
+    assert!(list_cached_quotas(&home, Some(vec!["a".into()]))
+        .unwrap()
+        .is_empty());
+    assert!(snapshot
+        .alerts
+        .iter()
+        .any(|alert| alert.contains("app-server quota unavailable")));
+}
+
+#[test]
+fn quota_app_server_parses_primary_and_secondary_windows() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-app-server-success");
+    seed_codex_home(&home, "a");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo "$_line2" | /usr/bin/grep '"params":null' >/dev/null || exit 2
+  echo '{"jsonrpc":"2.0","id":1,"result":{"plan_type":"plus","primary":{"used_percent":42,"windowDurationMins":300,"reset_at":"2026-06-02T10:00:00Z"},"secondary":{"used_percent":18,"windowDurationMins":10080,"reset_at":"2026-06-08T00:00:00Z"}}}'
+  sleep 5
+  exit 0
+fi
+exit 1
+"#,
+    );
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::remove_var("LAM_CODEX_BIN");
+
+    assert_eq!(
+        snapshot.source, "app_server_rate_limits",
+        "alerts: {:?}",
+        snapshot.alerts
+    );
+    assert_eq!(snapshot.plan_type.as_deref(), Some("plus"));
+    assert_eq!(snapshot.primary_used_percent, Some(42));
+    assert_eq!(snapshot.secondary_used_percent, Some(18));
+    assert_eq!(snapshot.primary_window_duration_mins, Some(300));
+    assert_eq!(snapshot.secondary_window_duration_mins, Some(10080));
+    assert_eq!(snapshot.remaining_percent, Some(58));
+    assert_eq!(snapshot.reset_at.as_deref(), Some("2026-06-02T10:00:00Z"));
+    assert_eq!(
+        snapshot.secondary_reset_at.as_deref(),
+        Some("2026-06-08T00:00:00Z")
+    );
+
+    let cached = list_cached_quotas(&home, Some(vec!["a".into()])).unwrap();
+    assert_eq!(cached.len(), 1);
+    assert_eq!(cached[0].source, "app_server_rate_limits");
+    assert_eq!(cached[0].staleness, "cached");
+    assert_eq!(cached[0].primary_used_percent, Some(42));
+}
+
+#[test]
+fn quota_app_server_pat_auth_uses_runtime_auth_before_auth_f() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-pat-runtime-auth-priority");
+    let account_home = seed_codex_home(&home, "a");
+    write(
+        &account_home.join("auth.json"),
+        r#"{"source":"runtime","personal_access_token":"pat"}"#,
+    );
+    write(
+        &account_home.join("auth-f.json"),
+        r#"{"source":"uploaded","accessToken":"web-token"}"#,
+    );
+    let codex_home_log = home.join("codex-home.log");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  printf '%s' "$CODEX_HOME" > "$LAM_TEST_CODEX_HOME_LOG"
+  /usr/bin/grep '"source"[[:space:]]*:[[:space:]]*"runtime"' "$CODEX_HOME/auth.json" >/dev/null || exit 4
+  /usr/bin/grep '"personal_access_token"[[:space:]]*:' "$CODEX_HOME/auth.json" >/dev/null || exit 5
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo '{"id":2,"result":{"rateLimits":{"planType":"plus","primary":{"usedPercent":31,"resetsAt":1781678412},"secondary":null}}}'
+  /bin/sleep 1
+  exit 0
+fi
+exit 1
+"#,
+    );
+    let original_enable = std::env::var_os("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    let original_bin = std::env::var_os("LAM_CODEX_BIN");
+    let original_log = std::env::var_os("LAM_TEST_CODEX_HOME_LOG");
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+    std::env::set_var("LAM_TEST_CODEX_HOME_LOG", &codex_home_log);
+
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+
+    restore_env_var("LAM_TEST_CODEX_HOME_LOG", original_log);
+    restore_env_var("LAM_CODEX_BIN", original_bin);
+    restore_env_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", original_enable);
+    assert_eq!(snapshot.source, "app_server_rate_limits");
+    assert_eq!(snapshot.primary_used_percent, Some(31));
+    assert_eq!(
+        PathBuf::from(fs::read_to_string(&codex_home_log).unwrap()),
+        account_home
+    );
+}
+
+#[test]
+fn quota_app_server_reset_credit_expiry_uses_manual_config() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-reset-credit-manual-expiry");
+    let account_home = seed_codex_home(&home, "a");
+    write(
+        &account_home.join("auth.json"),
+        r#"{"personal_access_token":"pat"}"#,
+    );
+    write(
+        &home.join(".lam/reset-credit-expiry.json"),
+        r#"{"profiles":{"a":{"resetCreditExpiresAt":"2026-07-15T00:00:00Z"}}}"#,
+    );
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo '{"id":2,"result":{"rateLimits":{"planType":"plus","primary":{"usedPercent":22,"resetsAt":1781678412},"secondary":null},"rateLimitResetCredits":{"availableCount":2}}}'
+  /bin/sleep 1
+  exit 0
+fi
+exit 1
+"#,
+    );
+    let original_enable = std::env::var_os("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    let original_bin = std::env::var_os("LAM_CODEX_BIN");
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+
+    restore_env_var("LAM_CODEX_BIN", original_bin);
+    restore_env_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", original_enable);
+    assert_eq!(snapshot.source, "app_server_rate_limits");
+    assert_eq!(snapshot.reset_credit_count, Some(2));
+    assert_eq!(
+        snapshot.reset_credit_expires_at.as_deref(),
+        Some("2026-07-15T00:00:00Z")
+    );
+    assert_eq!(
+        snapshot.reset_credit_expiry_source.as_deref(),
+        Some("manual_config")
+    );
+}
+
+#[test]
+fn quota_reset_consumes_credit_then_refreshes_snapshot() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-reset-consume-success");
+    let account_home = seed_codex_home(&home, "a");
+    write(
+        &account_home.join("auth.json"),
+        r#"{"personal_access_token":"pat"}"#,
+    );
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  case "$_line2" in
+    *account/rateLimitResetCredit/consume*)
+      echo '{"id":2,"result":{"outcome":"reset"}}'
+      ;;
+    *account/rateLimits/read*)
+      echo '{"id":2,"result":{"rateLimits":{"planType":"plus","primary":{"usedPercent":3,"resetsAt":1781678412},"secondary":null},"rateLimitResetCredits":{"availableCount":0}}}'
+      ;;
+    *) exit 2 ;;
+  esac
+  /bin/sleep 1
+  exit 0
+fi
+exit 1
+"#,
+    );
+    let original_enable = std::env::var_os("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    let original_bin = std::env::var_os("LAM_CODEX_BIN");
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+
+    let result = reset_profile_quota(&home, "a").unwrap();
+
+    restore_env_var("LAM_CODEX_BIN", original_bin);
+    restore_env_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", original_enable);
+    assert_eq!(result.outcome, "reset");
+    assert_eq!(result.snapshot.source, "app_server_rate_limits");
+    assert_eq!(result.snapshot.primary_used_percent, Some(3));
+    assert_eq!(result.snapshot.reset_credit_count, Some(0));
+    assert!(!home
+        .join(".lam/config/quota-reset-operations/a.json")
+        .exists());
+}
+
+#[test]
+fn quota_reset_unknown_outcome_reuses_same_operation_id() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-reset-reuse-operation");
+    let account_home = seed_codex_home(&home, "a");
+    write(
+        &account_home.join("auth.json"),
+        r#"{"personal_access_token":"pat"}"#,
+    );
+    let marker = home.join("first-reset-failed");
+    let log = home.join("consume.log");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  case "$_line2" in
+    *account/rateLimitResetCredit/consume*)
+      printf '%s\n' "$_line2" >> "$LAM_TEST_CONSUME_LOG"
+      if [ ! -f "$LAM_TEST_MARKER" ]; then
+        printf failed > "$LAM_TEST_MARKER"
+        exit 0
+      fi
+      echo '{"id":2,"result":{"outcome":"noCredit"}}'
+      ;;
+    *account/rateLimits/read*)
+      echo '{"id":2,"result":{"rateLimits":{"planType":"plus","primary":{"usedPercent":4,"resetsAt":1781678412},"secondary":null},"rateLimitResetCredits":{"availableCount":0}}}'
+      ;;
+    *) exit 2 ;;
+  esac
+  /bin/sleep 1
+  exit 0
+fi
+exit 1
+"#,
+    );
+    let original_enable = std::env::var_os("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    let original_bin = std::env::var_os("LAM_CODEX_BIN");
+    let original_marker = std::env::var_os("LAM_TEST_MARKER");
+    let original_log = std::env::var_os("LAM_TEST_CONSUME_LOG");
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+    std::env::set_var("LAM_TEST_MARKER", &marker);
+    std::env::set_var("LAM_TEST_CONSUME_LOG", &log);
+
+    let first = reset_profile_quota(&home, "a").unwrap_err();
+    let second = reset_profile_quota(&home, "a").unwrap();
+
+    restore_env_var("LAM_TEST_CONSUME_LOG", original_log);
+    restore_env_var("LAM_TEST_MARKER", original_marker);
+    restore_env_var("LAM_CODEX_BIN", original_bin);
+    restore_env_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", original_enable);
+    assert_eq!(first.code, "CODEX_RESET_OUTCOME_UNKNOWN");
+    assert_eq!(second.outcome, "noCredit");
+    let lines = fs::read_to_string(log).unwrap();
+    let ids = lines
+        .lines()
+        .filter_map(|line| {
+            let value: serde_json::Value = serde_json::from_str(line).ok()?;
+            value
+                .get("params")
+                .and_then(|params| params.get("idempotencyKey"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(ids.len(), 2);
+    assert_eq!(ids[0], ids[1]);
+}
+
+#[test]
+fn quota_app_server_pat_auth_ignores_broken_auth_f_for_expiry() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-pat-broken-auth-f-expiry");
+    let account_home = seed_codex_home(&home, "a");
+    write(
+        &account_home.join("auth.json"),
+        r#"{"personal_access_token":"pat"}"#,
+    );
+    write(&account_home.join("auth-f.json"), "{");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo '{"id":2,"result":{"rateLimits":{"planType":"plus","primary":{"usedPercent":24,"resetsAt":1781678412},"secondary":null},"rateLimitResetCredits":{"availableCount":1}}}'
+  /bin/sleep 1
+  exit 0
+fi
+exit 1
+"#,
+    );
+    let original_enable = std::env::var_os("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    let original_bin = std::env::var_os("LAM_CODEX_BIN");
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+
+    restore_env_var("LAM_CODEX_BIN", original_bin);
+    restore_env_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", original_enable);
+    assert_eq!(snapshot.source, "app_server_rate_limits");
+    assert_eq!(snapshot.staleness, "fresh");
+    assert_eq!(snapshot.reset_credit_count, Some(1));
+    assert_eq!(
+        snapshot.reset_credit_expiry_source.as_deref(),
+        Some("unknown")
+    );
+    assert!(snapshot
+        .alerts
+        .iter()
+        .any(|alert| alert.contains("Reset-credit expiry probe skipped")));
+}
+
+#[test]
+fn quota_app_server_uses_each_profile_codex_home() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-profile-codex-home");
+    let main_home = seed_codex_home(&home, "main");
+    let b_home = seed_codex_home(&home, "b");
+    assert!(!main_home.join("auth-f.json").exists());
+    assert!(!b_home.join("auth-f.json").exists());
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  case "$CODEX_HOME" in
+    */.codex) used=21 ;;
+    */.codex-b) used=64 ;;
+    *) exit 3 ;;
+  esac
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo "{\"id\":2,\"result\":{\"rateLimits\":{\"planType\":\"plus\",\"primary\":{\"usedPercent\":$used,\"resetsAt\":1781678412},\"secondary\":null}}}"
+  /bin/sleep 1
+  exit 0
+fi
+exit 1
+"#,
+    );
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+
+    let first = get_profile_quota(&home, "main", true).unwrap();
+    let second = get_profile_quota(&home, "b", true).unwrap();
+
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::remove_var("LAM_CODEX_BIN");
+    assert_eq!(first.primary_used_percent, Some(21));
+    assert_eq!(second.primary_used_percent, Some(64));
+}
+
+#[test]
+fn quota_prefers_auth_f_json_when_present() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-auth-f-priority");
+    let account_home = seed_codex_home(&home, "a");
+    let runtime_auth = r#"{"source":"runtime"}"#;
+    let uploaded_auth = r#"{"source":"uploaded"}"#;
+    write(&account_home.join("auth.json"), runtime_auth);
+    write(&account_home.join("auth-f.json"), uploaded_auth);
+    let codex_home_log = home.join("codex-home.log");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  printf '%s' "$CODEX_HOME" > "$LAM_TEST_CODEX_HOME_LOG"
+  /usr/bin/grep '"source"[[:space:]]*:[[:space:]]*"uploaded"' "$CODEX_HOME/auth.json" >/dev/null || exit 4
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo '{"id":2,"result":{"rateLimits":{"planType":"plus","primary":{"usedPercent":29,"resetsAt":1781678412},"secondary":null}}}'
+  /bin/sleep 1
+  exit 0
+fi
+exit 1
+"#,
+    );
+    let original_enable = std::env::var_os("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    let original_bin = std::env::var_os("LAM_CODEX_BIN");
+    let original_log = std::env::var_os("LAM_TEST_CODEX_HOME_LOG");
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+    std::env::set_var("LAM_TEST_CODEX_HOME_LOG", &codex_home_log);
+
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+
+    restore_env_var("LAM_TEST_CODEX_HOME_LOG", original_log);
+    restore_env_var("LAM_CODEX_BIN", original_bin);
+    restore_env_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", original_enable);
+    assert_eq!(snapshot.source, "app_server_rate_limits");
+    assert_eq!(snapshot.staleness, "fresh");
+    assert_eq!(snapshot.primary_used_percent, Some(29));
+    let staged_home = PathBuf::from(fs::read_to_string(&codex_home_log).unwrap());
+    assert_ne!(staged_home, account_home);
+    assert!(!staged_home.exists());
+    assert_eq!(
+        fs::read_to_string(account_home.join("auth.json")).unwrap(),
+        runtime_auth
+    );
+    assert_eq!(
+        fs::read_to_string(account_home.join("auth-f.json")).unwrap(),
+        uploaded_auth
+    );
+}
+
+#[test]
+fn quota_rejects_unusable_auth_f_without_runtime_fallback() {
+    for (name, auth_f, auth_f_is_dir) in [
+        ("malformed", "{", false),
+        ("non-object", "[]", false),
+        ("read-failure", "", true),
+    ] {
+        let _guard = env_lock().lock().unwrap();
+        let home = temp_home(&format!("quota-auth-f-invalid-{name}"));
+        let account_home = seed_codex_home(&home, "a");
+        write(&account_home.join("auth.json"), r#"{"source":"runtime"}"#);
+        if auth_f_is_dir {
+            fs::create_dir_all(account_home.join("auth-f.json")).unwrap();
+        } else {
+            write(&account_home.join("auth-f.json"), auth_f);
+        }
+        let launch_marker = home.join("codex-launched");
+        let bin = home.join("fake-codex.sh");
+        write_executable(
+            &bin,
+            r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  printf launched > "$LAM_TEST_LAUNCH_MARKER"
+  /usr/bin/grep '"source":"runtime"' "$CODEX_HOME/auth.json" >/dev/null || exit 4
+  echo '{"id":2,"result":{"rateLimits":{"planType":"plus","primary":{"usedPercent":1,"resetsAt":1781678412},"secondary":null}}}'
+  exit 0
+fi
+exit 1
+"#,
+        );
+        let original_enable = std::env::var_os("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+        let original_bin = std::env::var_os("LAM_CODEX_BIN");
+        let original_marker = std::env::var_os("LAM_TEST_LAUNCH_MARKER");
+        std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+        std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+        std::env::set_var("LAM_TEST_LAUNCH_MARKER", &launch_marker);
+
+        let snapshot = get_profile_quota(&home, "a", true).unwrap();
+
+        restore_env_var("LAM_TEST_LAUNCH_MARKER", original_marker);
+        restore_env_var("LAM_CODEX_BIN", original_bin);
+        restore_env_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", original_enable);
+        assert_eq!(snapshot.source, "usage_unavailable");
+        assert_eq!(snapshot.staleness, "unavailable");
+        assert!(!launch_marker.exists());
+        assert!(snapshot
+            .alerts
+            .iter()
+            .any(|alert| alert.contains("app-server quota unavailable")));
+    }
+}
+
+#[test]
+fn quota_removes_staging_home_after_app_server_failure() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-auth-f-failure-cleanup");
+    let account_home = seed_codex_home(&home, "a");
+    write(&account_home.join("auth.json"), r#"{"source":"runtime"}"#);
+    write(
+        &account_home.join("auth-f.json"),
+        r#"{"source":"uploaded"}"#,
+    );
+    let codex_home_log = home.join("codex-home.log");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  printf '%s' "$CODEX_HOME" > "$LAM_TEST_CODEX_HOME_LOG"
+  exit 7
+fi
+exit 1
+"#,
+    );
+    let original_enable = std::env::var_os("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    let original_bin = std::env::var_os("LAM_CODEX_BIN");
+    let original_log = std::env::var_os("LAM_TEST_CODEX_HOME_LOG");
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+    std::env::set_var("LAM_TEST_CODEX_HOME_LOG", &codex_home_log);
+
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+
+    restore_env_var("LAM_TEST_CODEX_HOME_LOG", original_log);
+    restore_env_var("LAM_CODEX_BIN", original_bin);
+    restore_env_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", original_enable);
+    assert_eq!(snapshot.source, "usage_unavailable");
+    let staged_home = PathBuf::from(fs::read_to_string(&codex_home_log).unwrap());
+    assert_ne!(staged_home, account_home);
+    assert!(!staged_home.exists());
+}
+
+#[test]
+fn quota_app_server_finds_codex_in_user_gui_launch_paths() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-user-bin");
+    seed_codex_home(&home, "a");
+    let bin = home.join(".npm-global/bin/codex");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo "$_line2" | /usr/bin/grep '"params":null' >/dev/null || exit 2
+  echo '{"jsonrpc":"2.0","id":1,"result":{"plan_type":"plus","primary":{"used_percent":17,"reset_at":"2026-06-02T10:00:00Z"},"secondary":{"used_percent":9,"reset_at":"2026-06-08T00:00:00Z"}}}'
+  /bin/sleep 5
+  exit 0
+fi
+exit 1
+"#,
+    );
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::remove_var("LAM_CODEX_BIN");
+    let original_path = std::env::var_os("PATH");
+    std::env::set_var("PATH", "");
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+    if let Some(path) = original_path {
+        std::env::set_var("PATH", path);
+    } else {
+        std::env::remove_var("PATH");
+    }
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+
+    assert_eq!(
+        snapshot.source, "app_server_rate_limits",
+        "alerts: {:?}",
+        snapshot.alerts
+    );
+    assert_eq!(snapshot.primary_used_percent, Some(17));
+    assert_eq!(snapshot.staleness, "fresh");
+}
+
+#[test]
+fn quota_app_server_adds_user_runtime_paths_for_codex_scripts() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-user-runtime-path");
+    seed_codex_home(&home, "a");
+    let codex = home.join(".npm-global/bin/codex");
+    write_executable(
+        &codex,
+        r#"#!/bin/sh
+exec node "$0-node" "$@"
+"#,
+    );
+    write_executable(
+        &home.join(".volta/bin/node"),
+        r#"#!/bin/sh
+shift
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo '{"jsonrpc":"2.0","id":1,"result":{"plan_type":"plus","primary":{"used_percent":13,"reset_at":"2026-06-02T10:00:00Z"},"secondary":{"used_percent":5,"reset_at":"2026-06-08T00:00:00Z"}}}'
+  /bin/sleep 5
+  exit 0
+fi
+exit 1
+"#,
+    );
+
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::remove_var("LAM_CODEX_BIN");
+    let original_path = std::env::var_os("PATH");
+    std::env::set_var("PATH", "/usr/bin:/bin:/usr/sbin:/sbin");
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+    if let Some(path) = original_path {
+        std::env::set_var("PATH", path);
+    } else {
+        std::env::remove_var("PATH");
+    }
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+
+    assert_eq!(
+        snapshot.source, "app_server_rate_limits",
+        "alerts: {:?}",
+        snapshot.alerts
+    );
+    assert_eq!(snapshot.primary_used_percent, Some(13));
+    assert_eq!(snapshot.staleness, "fresh");
+}
+
+#[test]
+fn quota_app_server_uses_login_shell_when_gui_path_has_no_codex() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-login-shell");
+    seed_codex_home(&home, "main");
+    let codex = home.join(".shell-bin/codex");
+    write_executable(
+        &codex,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo "$_line2" | /usr/bin/grep '"params":null' >/dev/null || exit 2
+  echo '{"jsonrpc":"2.0","id":1,"result":{"plan_type":"plus","primary":{"used_percent":11,"reset_at":"2026-06-02T10:00:00Z"},"secondary":{"used_percent":7,"reset_at":"2026-06-08T00:00:00Z"}}}'
+  /bin/sleep 5
+  exit 0
+fi
+exit 1
+"#,
+    );
+    let shell = home.join("login-shell");
+    let shell_body = format!(
+        "#!/bin/sh\nPATH=\"{}:$PATH\"\nexport PATH\nexec /bin/sh -c \"$2\"\n",
+        codex.parent().unwrap().display()
+    );
+    write_executable(&shell, &shell_body);
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_LOGIN_SHELL", &shell);
+    std::env::remove_var("LAM_CODEX_BIN");
+    let original_path = std::env::var_os("PATH");
+    std::env::set_var("PATH", "");
+    let snapshot = get_profile_quota(&home, "main", true).unwrap();
+    if let Some(path) = original_path {
+        std::env::set_var("PATH", path);
+    } else {
+        std::env::remove_var("PATH");
+    }
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::remove_var("LAM_CODEX_LOGIN_SHELL");
+
+    assert_eq!(
+        snapshot.source, "app_server_rate_limits",
+        "alerts: {:?}",
+        snapshot.alerts
+    );
+    assert_eq!(snapshot.primary_used_percent, Some(11));
+    assert_eq!(snapshot.staleness, "fresh");
+}
+
+#[test]
+fn quota_app_server_waits_for_delayed_rate_limit_response() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-delayed-response");
+    seed_codex_home(&home, "a");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  /bin/sleep 5
+  echo '{"id":2,"result":{"rateLimits":{"planType":"team","primary":{"usedPercent":24,"resetsAt":1781678412},"secondary":{"usedPercent":81,"resetsAt":1781794210}}}}'
+  /bin/sleep 1
+  exit 0
+fi
+exit 1
+"#,
+    );
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+    let snapshot = get_profile_quota(&home, "a", true).unwrap();
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::remove_var("LAM_CODEX_BIN");
+
+    assert_eq!(
+        snapshot.source, "app_server_rate_limits",
+        "alerts: {:?}",
+        snapshot.alerts
+    );
+    assert_eq!(snapshot.staleness, "fresh");
+    assert_eq!(snapshot.primary_used_percent, Some(24));
+    assert_eq!(snapshot.secondary_used_percent, Some(81));
+}
+
+#[test]
+fn quota_app_server_parses_monthly_only_window() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-monthly-window");
+    seed_codex_home(&home, "monthly");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+if [ "$1" = "app-server" ]; then
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo '{"id":2,"result":{"rateLimits":{"planType":"team","primary":{"usedPercent":11,"windowDurationMins":43800,"resetsAt":1784724636},"secondary":null}}}'
+  /bin/sleep 1
+  exit 0
+fi
+exit 1
+"#,
+    );
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+    let snapshot = get_profile_quota(&home, "monthly", true).unwrap();
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::remove_var("LAM_CODEX_BIN");
+
+    assert_eq!(snapshot.plan_type.as_deref(), Some("team"));
+    assert_eq!(snapshot.primary_used_percent, Some(11));
+    assert_eq!(snapshot.primary_window_duration_mins, Some(43800));
+    assert_eq!(snapshot.secondary_used_percent, None);
+    assert_eq!(snapshot.secondary_window_duration_mins, None);
+    assert_eq!(snapshot.remaining_percent, Some(89));
+    assert_eq!(snapshot.reset_at.as_deref(), Some("1784724636"));
+    assert_eq!(snapshot.secondary_reset_at, None);
+}
+
+#[test]
+fn quota_app_server_failure_returns_cached_real_quota_when_available() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-cache-fallback");
+    seed_codex_home(&home, "a");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/usr/bin/env bash
+if [ "$1" = "app-server" ]; then
+  if [ "$LAM_FAKE_CODEX_FAIL" = "1" ]; then
+    echo 'offline' >&2
+    exit 1
+  fi
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo "$_line2" | /usr/bin/grep '"params":null' >/dev/null || exit 2
+  echo '{"jsonrpc":"2.0","id":1,"result":{"plan_type":"plus","primary":{"used_percent":33,"reset_at":"2026-06-02T10:00:00Z"},"secondary":{"used_percent":22,"reset_at":"2026-06-08T00:00:00Z"}}}'
+  sleep 5
+  exit 0
+fi
+exit 1
+"#,
+    );
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+    let fresh = get_profile_quota(&home, "a", true).unwrap();
+    std::env::set_var("LAM_FAKE_CODEX_FAIL", "1");
+    let cached = get_profile_quota(&home, "a", true).unwrap();
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::remove_var("LAM_CODEX_BIN");
+    std::env::remove_var("LAM_FAKE_CODEX_FAIL");
+
+    assert_eq!(fresh.source, "app_server_rate_limits");
+    assert_eq!(cached.source, "app_server_rate_limits");
+    assert_eq!(cached.staleness, "cached");
+    assert_eq!(cached.primary_used_percent, Some(33));
+    assert!(cached
+        .alerts
+        .iter()
+        .any(|alert| alert.contains("app-server quota unavailable")));
+}
+
+#[test]
+fn refresh_all_quotas_warns_when_realtime_falls_back_to_cached_quota() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-refresh-cache-warning");
+    seed_codex_home(&home, "a");
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/usr/bin/env bash
+if [ "$1" = "app-server" ]; then
+  if [ "$LAM_FAKE_CODEX_FAIL" = "1" ]; then
+    echo 'offline' >&2
+    exit 1
+  fi
+  read _line1 || exit 1
+  read _line2 || exit 1
+  echo "$_line2" | /usr/bin/grep '"params":null' >/dev/null || exit 2
+  echo '{"jsonrpc":"2.0","id":1,"result":{"plan_type":"plus","primary":{"used_percent":31,"reset_at":"2026-06-02T10:00:00Z"},"secondary":{"used_percent":21,"reset_at":"2026-06-08T00:00:00Z"}}}'
+  sleep 5
+  exit 0
+fi
+exit 1
+"#,
+    );
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    std::env::set_var("LAM_CODEX_BIN", bin.to_string_lossy().to_string());
+    let fresh = refresh_all_quotas(&home, Some(vec!["a".into()])).unwrap();
+    std::env::set_var("LAM_FAKE_CODEX_FAIL", "1");
+    let fallback = refresh_all_quotas(&home, Some(vec!["a".into()])).unwrap();
+    std::env::remove_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::remove_var("LAM_CODEX_BIN");
+    std::env::remove_var("LAM_FAKE_CODEX_FAIL");
+
+    assert!(fresh.warnings.is_empty());
+    assert_eq!(fresh.snapshots[0].staleness, "fresh");
+    assert_eq!(fallback.snapshots[0].staleness, "cached");
+    assert_eq!(fallback.snapshots[0].primary_used_percent, Some(31));
+    assert!(fallback
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("a: realtime quota unavailable")));
+    assert!(fallback
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("offline")));
+}
+
+#[test]
+fn sessions_report_original_current_provider_and_mismatch() {
+    let home = temp_home("session-provider-mismatch");
+    let profile = seed_codex_home(&home, "a");
+    write(
+        &profile.join("sessions/2026/06/01/provider-session.jsonl"),
+        "{\"session_id\":\"provider-session\",\"cwd\":\"/tmp/project\",\"summary\":\"Provider mismatch\",\"model\":\"gpt-5-codex\",\"provider_id\":\"openai\"}\n",
+    );
+    write(
+        &profile.join("config.toml"),
+        "model = \"gpt-5.4\"\nmodel_provider = \"company-proxy\"\n",
+    );
+
+    let sessions = list_sessions(&home, "a").unwrap();
+    let session = sessions
+        .iter()
+        .find(|session| session.id == "provider-session")
+        .unwrap();
+    assert_eq!(session.original_provider_id.as_deref(), Some("openai"));
+    assert_eq!(
+        session.current_provider_id.as_deref(),
+        Some("company-proxy")
+    );
+    assert!(session.provider_mismatch);
+}
+
+#[test]
+fn quota_proxy_uses_original_profile_even_with_temporary_auth_home() {
+    let _guard = env_lock().lock().unwrap();
+    let home = temp_home("quota-independent-proxy");
+    let profile = seed_codex_home(&home, "sg");
+    fs::write(
+        profile.join("auth-f.json"),
+        r#"{"tokens":{"access_token":"synthetic"}}"#,
+    )
+    .unwrap();
+    localagentmanager_core::update_account_proxy(
+        &home,
+        &localagentmanager_core::UpdateAccountProxyRequest {
+            profile_id: "sg".into(),
+            enabled: true,
+            url: "http://127.0.0.1:17891".into(),
+        },
+    )
+    .unwrap();
+    let bin = home.join("fake-codex.sh");
+    write_executable(
+        &bin,
+        r#"#!/bin/sh
+[ "$1" = app-server ] || exit 4
+[ "$HTTPS_PROXY" = http://127.0.0.1:17891 ] || exit 5
+[ "$https_proxy" = "$HTTPS_PROXY" ] || exit 6
+[ "$NO_PROXY" = localhost,127.0.0.1,::1 ] || exit 7
+case "$CODEX_HOME" in */lam-quota-auth-*) ;; *) exit 8 ;; esac
+read first || exit 1
+read second || exit 1
+echo '{"id":2,"result":{"rateLimits":{"planType":"plus","primary":{"usedPercent":42,"resetsAt":1781678412},"secondary":null}}}'
+/bin/sleep 1
+"#,
+    );
+    let old_bin = std::env::var_os("LAM_CODEX_BIN");
+    let old_enable = std::env::var_os("LAM_ENABLE_CODEX_APP_SERVER_QUOTA");
+    std::env::set_var("LAM_CODEX_BIN", &bin);
+    std::env::set_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", "1");
+    let result = get_profile_quota(&home, "sg", true);
+    restore_env_var("LAM_CODEX_BIN", old_bin);
+    restore_env_var("LAM_ENABLE_CODEX_APP_SERVER_QUOTA", old_enable);
+    assert_eq!(result.unwrap().primary_used_percent, Some(42));
+}
+
+#[test]
+fn deletable_filter_exposes_older_selectable_sessions_before_pagination() {
+    let home = temp_home("deletable-filter");
+    let profile = seed_codex_home(&home, "a");
+    fs::remove_dir_all(profile.join("sessions")).unwrap();
+    for i in 0..25 {
+        let path = profile.join(format!("sessions/2026/06/01/{i}.jsonl"));
+        write(&path, &format!("{{\"session_id\":\"session-{i}\"}}\n"));
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_times(
+                fs::FileTimes::new()
+                    .set_modified(SystemTime::now() - Duration::from_secs((10 + i) * 86400)),
+            )
+            .unwrap();
+    }
+    let newest = query_sessions_page(&home, "a", &SessionQueryRequest::default()).unwrap();
+    assert!(newest.items.iter().all(|session| !session.deletable));
+    let request =
+        serde_json::from_value(serde_json::json!({"limit":20,"deletableOnly":true})).unwrap();
+    let eligible = query_sessions_page(&home, "a", &request).unwrap();
+    assert_eq!(eligible.items.len(), 5);
+    assert!(eligible.items.iter().all(|session| session.deletable));
+    assert!(eligible.next_cursor.is_none());
+}

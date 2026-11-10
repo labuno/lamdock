@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LamDock</title>
+    <script>
+      (function () {
+        var theme = localStorage.getItem("lam-theme");
+        var dark =
+          theme === "dark" ||
+          (theme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        var grad = dark
+          ? "radial-gradient(circle at center, #161a24 0%, #0b0d12 100%)"
+          : "radial-gradient(circle at center, #ffffff 0%, #eef0f4 100%)";
+        document.documentElement.style.background = grad;
+      })();
+    </script>
+    <style>
+      .splash-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        background: inherit;
+      }
+      .splash-logo {
+        width: 130px;
+        height: 130px;
+        animation: splash-pulse 2.2s infinite ease-in-out;
+      }
+      .splash-text {
+        margin-top: 24px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-color, #4b5563);
+        animation: splash-fade 1.6s infinite ease-in-out;
+      }
+      
+      /* Dark/Light mode tokens */
+      :root[data-theme="dark"] {
+        --bg-color: #0b0d12;
+        --bg-gradient: radial-gradient(circle at center, #161a24 0%, #0b0d12 100%);
+        --text-color: #8c9ba5;
+      }
+      :root[data-theme="light"] {
+        --bg-color: #eef0f4;
+        --bg-gradient: radial-gradient(circle at center, #ffffff 0%, #eef0f4 100%);
+        --text-color: #5a6b82;
+      }
+      
+      html, body {
+        background: var(--bg-gradient, var(--bg-color));
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+      }
+      
+      @keyframes splash-pulse {
+        0% {
+          transform: scale(0.95);
+          filter: drop-shadow(0 0 10px rgba(142, 200, 255, 0.2));
+        }
+        50% {
+          transform: scale(1.04);
+          filter: drop-shadow(0 0 25px rgba(201, 168, 255, 0.45));
+        }
+        100% {
+          transform: scale(0.95);
+          filter: drop-shadow(0 0 10px rgba(142, 200, 255, 0.2));
+        }
+      }
+      
+      @keyframes splash-fade {
+        0%, 100% { opacity: 0.55; }
+        50% { opacity: 0.95; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="splash-container">
+        <img src="/src/assets/lam-orbit-icon.png" class="splash-logo" alt="LamDock" />
+        <div class="splash-text">Loading LamDock...</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
