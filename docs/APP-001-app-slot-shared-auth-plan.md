@@ -113,7 +113,7 @@ App 当前目标按以下顺序判定，由新的只读查询 `get_app_target` �
 
 | 目标 | 判定 | 返回 |
 | --- | --- | --- |
-| 外部连接 | Provider Hub 中存在 `profile_id = main` 的绑定 | `provider`，带 provider id 和显示名 |
+| 外部连接 | Provider Hub 中存在 `profile_id = main` 的绑定 | `provider`，带 provider id（显示名由前端从 Providers 列表解析） |
 | 自定义连接 | 无上述绑定，`~/.codex/config.toml` 顶层 `model_provider` 存在且不是 `openai` | `customProvider`，带 provider id |
 | 帐号 | 其余情况 | `account`，带按 4.4 识别出的帐号 id；无法识别时为空 |
 

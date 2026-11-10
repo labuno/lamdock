@@ -129,7 +129,7 @@
       "maturity": "DECOMPOSED",
       "elaboration_blockers": [],
       "readiness": "READY",
-      "status": "待执行",
+      "status": "验证成功",
       "depends_on": ["APP-001-01"],
       "blockers": [],
       "consumes": ["artifact:app-slot-link"],
@@ -144,7 +144,20 @@
         "cargo test --offline --test app_target",
         "cargo test --offline --test app_slot_shared_auth"
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "command": "cargo test --offline --test app_target",
+          "result": "PASS",
+          "scope": "local",
+          "verified_at": "2026-11-10T14:25:00+08:00"
+        },
+        {
+          "command": "cargo test --offline --test app_slot_shared_auth",
+          "result": "PASS",
+          "scope": "local",
+          "verified_at": "2026-11-10T14:25:00+08:00"
+        }
+      ]
     },
     {
       "id": "APP-001-06",

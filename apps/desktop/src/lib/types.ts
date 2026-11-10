@@ -5,6 +5,12 @@ export type HealthCheck = {
   startupIssue?: string | null;
 };
 
+export type AppTarget = {
+  kind: 'account' | 'provider' | 'customProvider';
+  accountId: string | null;
+  providerId: string | null;
+};
+
 export type CodexAccount = {
   id: string;
   displayName: string;

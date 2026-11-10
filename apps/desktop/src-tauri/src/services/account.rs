@@ -2044,6 +2044,28 @@ pub fn switch_to_pat_account(home_root: &Path, account_id: &str) -> Result<()> {
         ));
     }
 
+    let target = super::app_target::get_app_target(home_root)?;
+    let provider = target.provider_id.unwrap_or_default();
+    match target.kind {
+        super::app_target::AppTargetKind::Provider => {
+            return Err(AppError::new(
+                "APP_SLOT_PROVIDER_ATTACHED",
+                format!(
+                    "Codex App is using the '{provider}' connection; detach it before switching accounts"
+                ),
+            ));
+        }
+        super::app_target::AppTargetKind::CustomProvider => {
+            return Err(AppError::new(
+                "APP_SLOT_CUSTOM_PROVIDER",
+                format!(
+                    "~/.codex/config.toml sets model_provider = \"{provider}\"; the Codex App ignores account credentials until it is removed"
+                ),
+            ));
+        }
+        super::app_target::AppTargetKind::Account => {}
+    }
+
     let slot = app_slot_dir(home_root);
     fs::create_dir_all(&slot).map_err(|e| {
         AppError::new(

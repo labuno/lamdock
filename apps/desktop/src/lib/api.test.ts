@@ -15,6 +15,7 @@ import {
   getCodexLaunchPermissionPreset,
   setCodexLaunchPermissionPreset,
   queryRequestMonitor,
+  getAppTarget,
 } from './api';
 import type { TokenExpirationStatus } from './types';
 
@@ -34,6 +35,17 @@ beforeEach(() => {
 });
 
 describe('PAT API functions', () => {
+  it('reads what the Codex App currently runs on', async () => {
+    mockInvoke.mockResolvedValue({ kind: 'provider', accountId: null, providerId: 'account-pro' });
+
+    expect(await getAppTarget()).toEqual({
+      kind: 'provider',
+      accountId: null,
+      providerId: 'account-pro',
+    });
+    expect(mockInvoke).toHaveBeenCalledWith('get_app_target');
+  });
+
   it('queries recorded gateway requests through the native monitor command', async () => {
     const descriptor = Object.getOwnPropertyDescriptor(window, '__TAURI_INTERNALS__');
     Object.defineProperty(window, '__TAURI_INTERNALS__', {

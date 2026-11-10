@@ -138,6 +138,7 @@ fn main() {
             commands::add_pat_account,
             commands::add_session_profile_account,
             commands::switch_to_pat_account,
+            commands::get_app_target,
             commands::export_cpa_credentials,
             commands::update_pat_session_auth,
             commands::get_auth_mode,

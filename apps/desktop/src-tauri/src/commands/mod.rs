@@ -8,7 +8,7 @@ use localagentmanager_core::{
     execute_create_account as core_execute_create_account,
     execute_create_relay as core_execute_create_relay,
     execute_rename_account as core_execute_rename_account,
-    export_cpa_credentials as core_export_cpa_credentials,
+    export_cpa_credentials as core_export_cpa_credentials, get_app_target as core_get_app_target,
     get_profile_quota as core_get_profile_quota, list_accounts as core_list_accounts,
     list_cached_accounts as core_list_cached_accounts,
     list_cached_quotas as core_list_cached_quotas, list_sessions as core_list_sessions,
@@ -943,6 +943,11 @@ pub fn add_session_profile_account(
 #[tauri::command]
 pub fn switch_to_pat_account(account_id: String) -> Result<(), AppError> {
     core_switch_to_pat_account(&home_root()?, &account_id)
+}
+
+#[tauri::command]
+pub fn get_app_target() -> Result<localagentmanager_core::AppTarget, AppError> {
+    core_get_app_target(&home_root()?)
 }
 
 #[tauri::command]

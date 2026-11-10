@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { RequestMonitorSnapshot } from './types';
 import type {
+  AppTarget,
   CodexAccount,
   SessionPage,
   SessionPageRequest,
@@ -424,6 +425,10 @@ export async function addSessionProfileAccount(
 
 export async function switchToPatAccount(accountId: string): Promise<void> {
   return invoke<void>('switch_to_pat_account', { accountId });
+}
+
+export async function getAppTarget(): Promise<AppTarget> {
+  return invoke<AppTarget>('get_app_target');
 }
 
 export async function exportCpaCredentials(profileId: string): Promise<CpaExport> {
