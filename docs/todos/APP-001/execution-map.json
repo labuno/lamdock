@@ -1,0 +1,119 @@
+{
+  "schema_version": 5,
+  "plan_id": "APP-001",
+  "project_root": "../../..",
+  "source_plan": "docs/APP-001-app-slot-shared-auth-plan.md",
+  "traceability": "traceability.json",
+  "work_packages": ["APP-001A", "APP-001B", "APP-001C"],
+  "nodes": [
+    {
+      "id": "APP-001-01",
+      "title": "链接式切换与槽位凭据保全",
+      "work_packages": ["APP-001A"],
+      "source_sections": [
+        "## 1. Objective（目标）",
+        "### 4.2 切换流程",
+        "### 4.3 槽位原有凭据的保全"
+      ],
+      "todo": "APP-001-01-slot-link-switch.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "READY",
+      "status": "待执行",
+      "depends_on": [],
+      "blockers": [],
+      "consumes": [],
+      "produces": [
+        {
+          "id": "artifact:app-slot-link",
+          "kind": "backend_behavior",
+          "description": "链接式 switch_to_pat_account、API Key 拒绝与槽位普通文件凭据的写回或导入"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --offline --test app_slot_shared_auth",
+        "cargo test --offline --test integration_pat_accounts",
+        "cargo test --offline --lib account"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "APP-001-02",
+      "title": "当前帐号识别、删除与重命名联动",
+      "work_packages": ["APP-001A"],
+      "source_sections": ["### 4.4 账号生命周期联动"],
+      "todo": "APP-001-02-account-lifecycle.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": ["APP-001-01"],
+      "blockers": [],
+      "consumes": ["artifact:app-slot-link"],
+      "produces": [
+        {
+          "id": "artifact:app-slot-lifecycle",
+          "kind": "backend_behavior",
+          "description": "按槽位链接识别当前帐号，删除与重命名同步处理槽位链接"
+        }
+      ],
+      "integration_gates": [
+        "cargo test --offline --test app_slot_shared_auth",
+        "cargo test --offline --test integration_pat_accounts"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "APP-001-03",
+      "title": "PAT 模式切换按钮可用性与文案",
+      "work_packages": ["APP-001B"],
+      "source_sections": ["### 4.5 前端行为"],
+      "todo": "APP-001-03-pat-switch-ui.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": ["APP-001-01"],
+      "blockers": [],
+      "consumes": ["artifact:app-slot-link"],
+      "produces": [
+        {
+          "id": "artifact:pat-switch-ui",
+          "kind": "frontend_behavior",
+          "description": "主窗口与托盘 PAT 模式下的切换按钮可用性、原因提示与成功文案"
+        }
+      ],
+      "integration_gates": [
+        "npm test -- src/components/tray-quota-panel.test.tsx src/App.handoff.test.tsx"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "APP-001-04",
+      "title": "全量检查、真实 App 验收与文档",
+      "work_packages": ["APP-001C"],
+      "source_sections": [
+        "## 7. Verification（验证）",
+        "## 8. Done criteria（完成标准）",
+        "## 9. Stop conditions（停止条件）"
+      ],
+      "todo": "APP-001-04-acceptance-docs.md",
+      "maturity": "DECOMPOSED",
+      "elaboration_blockers": [],
+      "readiness": "BLOCKED",
+      "status": "待执行",
+      "depends_on": ["APP-001-02", "APP-001-03"],
+      "blockers": [],
+      "consumes": ["artifact:app-slot-lifecycle", "artifact:pat-switch-ui"],
+      "produces": [
+        {
+          "id": "artifact:app-slot-acceptance",
+          "kind": "verification",
+          "description": "make check 与真实 Codex App 验收证据，以及更新后的 README 和验收清单"
+        }
+      ],
+      "integration_gates": ["make check"],
+      "evidence": []
+    }
+  ]
+}

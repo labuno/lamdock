@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "plan_id": "APP-001",
+  "source_documents": [
+    {
+      "id": "plan",
+      "path": "docs/APP-001-app-slot-shared-auth-plan.md",
+      "sha256": "feddde82e09f5ede066424ebe7b946334d6460f54789effbc98781f6f22401ef",
+      "role": "primary"
+    }
+  ],
+  "review_dimensions": [
+    {
+      "id": "objective",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-OBJ-01"],
+      "rationale": "接力目标由后端链接切换实现，由前端入口暴露。"
+    },
+    {
+      "id": "scope",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-SCP-01", "REQ-SCP-02"],
+      "rationale": "API Key 帐号排除与不修改 config.toml 两条边界分别落在后端与前端节点。"
+    },
+    {
+      "id": "steps",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-STP-01", "REQ-STP-02", "REQ-STP-03", "REQ-STP-04"],
+      "rationale": "切换、保全、生命周期联动与当前帐号识别各有对应节点。"
+    },
+    {
+      "id": "interfaces",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-IF-01", "REQ-IF-02"],
+      "rationale": "后端命令签名不变，前端按钮可用性是唯一可见接口变化。"
+    },
+    {
+      "id": "work_packages",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-WP-01", "REQ-WP-02", "REQ-WP-03"],
+      "rationale": "三个工作包分别映射到后端、前端与验收节点。"
+    },
+    {
+      "id": "test_matrix",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-TM-01", "REQ-TM-02"],
+      "rationale": "后端集成测试与前端按钮状态测试分别归属后端与前端节点。"
+    },
+    {
+      "id": "verification",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-VER-01", "REQ-VER-02"],
+      "rationale": "全量检查与真实 App 验收集中在验收节点。"
+    },
+    {
+      "id": "done_criteria",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-DONE-01"],
+      "rationale": "完成标准由验收节点汇总确认。"
+    },
+    {
+      "id": "stop_conditions",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-STOP-01"],
+      "rationale": "链接被替换的停止条件在实现与验收两处检查。"
+    },
+    {
+      "id": "external_sources",
+      "disposition": "covered",
+      "requirement_ids": ["REQ-EXT-01"],
+      "rationale": "Codex CLI 对符号链接的写入与退出登录行为来自本地实测。"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-OBJ-01",
+      "kind": "objective",
+      "source_document": "plan",
+      "source_section": "## 1. Objective（目标）",
+      "source_quote": "任意一个已登录 ChatGPT 的账号，都可以随时接管 Codex App",
+      "statement": "任一 ChatGPT 帐号都能接管 Codex App，且与同帐号的 Profile CLI 不冲突。",
+      "verification": "集成测试断言经槽位写入落到帐号文件；前端可切换帐号调用切换命令。",
+      "node_ids": ["APP-001-01", "APP-001-03"]
+    },
+    {
+      "id": "REQ-SCP-01",
+      "kind": "scope",
+      "source_document": "plan",
+      "source_section": "## 3. Scope（范围）",
+      "source_quote": "API Key 账号不能接管 Codex App",
+      "statement": "API Key 帐号被后端拒绝，前端不提供可点击的切换。",
+      "verification": "后端返回 APP_SLOT_API_KEY_UNSUPPORTED 且槽位不变；前端测试按钮禁用。",
+      "node_ids": ["APP-001-01", "APP-001-03"]
+    },
+    {
+      "id": "REQ-SCP-02",
+      "kind": "scope",
+      "source_document": "plan",
+      "source_section": "## 3. Scope（范围）",
+      "source_quote": "不修改 `~/.codex/config.toml`",
+      "statement": "切换只处理凭据文件，不触碰 App 的 config.toml。",
+      "verification": "集成测试与代码审查确认切换路径不写 config.toml。",
+      "node_ids": ["APP-001-01"]
+    },
+    {
+      "id": "REQ-STP-01",
+      "kind": "steps",
+      "source_document": "plan",
+      "source_section": "### 4.2 切换流程",
+      "source_quote": "以符号链接指向目标账号目录中的同名文件",
+      "statement": "槽位 auth.json 与 auth-f.json 原子替换为指向帐号文件的符号链接。",
+      "verification": "集成测试断言 read_link 目标与经链接读取的内容。",
+      "node_ids": ["APP-001-01"]
+    },
+    {
+      "id": "REQ-STP-02",
+      "kind": "steps",
+      "source_document": "plan",
+      "source_section": "### 4.3 槽位原有凭据的保全",
+      "source_quote": "槽位中的普通文件凭据在重新链接前必须被保全",
+      "statement": "槽位普通文件凭据按身份写回所属帐号，无法唯一匹配时导入为新帐号。",
+      "verification": "集成测试覆盖写回、不覆盖、团队匹配、导入与重名。",
+      "node_ids": ["APP-001-01"]
+    },
+    {
+      "id": "REQ-STP-03",
+      "kind": "steps",
+      "source_document": "plan",
+      "source_section": "### 4.4 账号生命周期联动",
+      "source_quote": "删除或重命名被链接的账号时同步处理槽位链接",
+      "statement": "删除被链接帐号移除槽位链接，重命名后链接指向新目录。",
+      "verification": "集成测试断言删除后槽位不存在、重命名后链接目标更新。",
+      "node_ids": ["APP-001-02"]
+    },
+    {
+      "id": "REQ-STP-04",
+      "kind": "steps",
+      "source_document": "plan",
+      "source_section": "### 4.4 账号生命周期联动",
+      "source_quote": "当前接管 App 的账号以槽位链接目标为准",
+      "statement": "帐号列表的 isActiveAuth 以槽位链接目标为准。",
+      "verification": "集成测试断言共用 account_id 时只标记链接目标帐号。",
+      "node_ids": ["APP-001-02"]
+    },
+    {
+      "id": "REQ-IF-01",
+      "kind": "interfaces",
+      "source_document": "plan",
+      "source_section": "### 4.5 前端行为",
+      "source_quote": "没有凭据或使用 API Key 的账号不显示可点击的切换按钮",
+      "statement": "主窗口与托盘对不可接管 App 的帐号禁用切换并提示原因。",
+      "verification": "前端测试覆盖无凭据、API、main、当前帐号四种情况。",
+      "node_ids": ["APP-001-03"]
+    },
+    {
+      "id": "REQ-IF-02",
+      "kind": "interfaces",
+      "source_document": "plan",
+      "source_section": "### 4.2 切换流程",
+      "source_quote": "`switch_to_pat_account` 保持命令名与参数不变",
+      "statement": "Tauri 命令与核心函数签名不变，前端调用无需改动。",
+      "verification": "既有前端 API 测试与 Rust 编译通过。",
+      "node_ids": ["APP-001-01"]
+    },
+    {
+      "id": "REQ-WP-01",
+      "kind": "work_packages",
+      "source_document": "plan",
+      "source_section": "## 5. Work packages（工作包）",
+      "source_quote": "APP-001A",
+      "statement": "后端槽位工作包由切换与生命周期两个节点完成。",
+      "verification": "两个节点 Gate 通过。",
+      "node_ids": ["APP-001-01", "APP-001-02"]
+    },
+    {
+      "id": "REQ-WP-02",
+      "kind": "work_packages",
+      "source_document": "plan",
+      "source_section": "## 5. Work packages（工作包）",
+      "source_quote": "APP-001B",
+      "statement": "前端入口工作包由按钮可用性节点完成。",
+      "verification": "前端节点 Gate 通过。",
+      "node_ids": ["APP-001-03"]
+    },
+    {
+      "id": "REQ-WP-03",
+      "kind": "work_packages",
+      "source_document": "plan",
+      "source_section": "## 5. Work packages（工作包）",
+      "source_quote": "APP-001C",
+      "statement": "验收与文档工作包由验收节点完成。",
+      "verification": "make check 与真实验收记录。",
+      "node_ids": ["APP-001-04"]
+    },
+    {
+      "id": "REQ-TM-01",
+      "kind": "test_matrix",
+      "source_document": "plan",
+      "source_section": "## 6. Test matrix（测试矩阵）",
+      "source_quote": "新增 `tests/app_slot_shared_auth.rs`",
+      "statement": "后端行为由新增集成测试文件覆盖。",
+      "verification": "cargo test --offline --test app_slot_shared_auth 通过。",
+      "node_ids": ["APP-001-01", "APP-001-02"]
+    },
+    {
+      "id": "REQ-TM-02",
+      "kind": "test_matrix",
+      "source_document": "plan",
+      "source_section": "## 6. Test matrix（测试矩阵）",
+      "source_quote": "前端测试覆盖 PAT 模式按钮状态",
+      "statement": "主窗口与托盘的 PAT 按钮状态有前端测试。",
+      "verification": "前端节点 Gate 通过。",
+      "node_ids": ["APP-001-03"]
+    },
+    {
+      "id": "REQ-VER-01",
+      "kind": "verification",
+      "source_document": "plan",
+      "source_section": "## 7. Verification（验证）",
+      "source_quote": "`make check` 全部通过",
+      "statement": "全量检查通过。",
+      "verification": "make check 退出码为 0。",
+      "node_ids": ["APP-001-04"]
+    },
+    {
+      "id": "REQ-VER-02",
+      "kind": "verification",
+      "source_document": "plan",
+      "source_section": "## 7. Verification（验证）",
+      "source_quote": "在真实 Codex App 上验证",
+      "statement": "真实 App 接力、刷新、退出登录与帐号联动场景完成验收。",
+      "verification": "docs/manual-acceptance.md 记录结果。",
+      "node_ids": ["APP-001-04"]
+    },
+    {
+      "id": "REQ-DONE-01",
+      "kind": "done_criteria",
+      "source_document": "plan",
+      "source_section": "## 8. Done criteria（完成标准）",
+      "source_quote": "所有 todo 节点状态为验证成功",
+      "statement": "所有节点验证成功且证据完整。",
+      "verification": "validate_todo_graph.py 通过且全部节点为验证成功。",
+      "node_ids": ["APP-001-04"]
+    },
+    {
+      "id": "REQ-STOP-01",
+      "kind": "stop_conditions",
+      "source_document": "plan",
+      "source_section": "## 9. Stop conditions（停止条件）",
+      "source_quote": "Codex 刷新 token 时替换掉符号链接",
+      "statement": "若 Codex 刷新会替换链接，则停止推进并重新评估方案。",
+      "verification": "实现阶段不依赖该假设之外的行为；验收阶段观察刷新后的槽位类型。",
+      "node_ids": ["APP-001-01", "APP-001-04"]
+    },
+    {
+      "id": "REQ-EXT-01",
+      "kind": "external_sources",
+      "source_document": "plan",
+      "source_section": "### 2.2 Codex 凭据写入实测",
+      "source_quote": "退出登录只删除链接本身",
+      "statement": "依赖 Codex 写入跟随链接、退出登录只删链接的实测行为。",
+      "verification": "集成测试模拟经链接写入；真实验收确认退出登录行为。",
+      "node_ids": ["APP-001-01"]
+    }
+  ],
+  "review": {
+    "status": "PASS",
+    "unresolved_requirements": [],
+    "unjustified_nodes": [],
+    "reviewed_at": "2026-11-10T11:40:00+08:00"
+  }
+}
