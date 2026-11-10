@@ -211,7 +211,7 @@
       "maturity": "DECOMPOSED",
       "elaboration_blockers": [],
       "readiness": "READY",
-      "status": "待执行",
+      "status": "待测试验证",
       "depends_on": ["APP-001-02", "APP-001-06"],
       "blockers": [],
       "consumes": ["artifact:app-slot-lifecycle", "artifact:pat-switch-ui", "artifact:app-target-ui"],
@@ -223,7 +223,14 @@
         }
       ],
       "integration_gates": ["make check"],
-      "evidence": []
+      "evidence": [
+        {
+          "command": "make check",
+          "result": "PASS",
+          "scope": "local",
+          "verified_at": "2026-11-10T14:10:00+08:00"
+        }
+      ]
     }
   ]
 }
