@@ -20,13 +20,13 @@
 
 ## Tasks
 
-- [ ] `T01` 编写生命周期测试并观察 RED。
+- [x] `T01` 编写生命周期测试并观察 RED。
   - **Test and RED**: 在 `tests/app_slot_shared_auth.rs` 增加：团队帐号共用 `account_id` 时只标记链接目标帐号为当前帐号；删除被链接帐号后槽位文件不存在（`symlink_metadata` 失败）；重命名后槽位链接指向新目录且内容可读。实现前失败。
   - **Execution logic**: 复用 APP-001-01 的测试辅助函数；重命名用 `overwrite_wrapper: true` 避免受本机 wrapper 影响。
   - **Files and responsibilities**: `apps/desktop/src-tauri/tests/app_slot_shared_auth.rs`。
   - **Verification**: 运行 Gate 命令记录 RED。
   - **Artifact handoff**: 作为 T02 的验收标准。
-- [ ] `T02` 实现链接感知的当前帐号识别、删除与重命名。
+- [x] `T02` 实现链接感知的当前帐号识别、删除与重命名。
   - **Test and RED**: T01 用例。
   - **Execution logic**: `mark_active_auth_account` 先读 `read_link`，命中则只标记链接目标帐号并返回；新增 `app_slot_links_into(home, old_home)` 返回指向某帐号目录的槽位链接及相对路径；`delete_account` 在删除目录前移除这些链接；`execute_rename_account` 在目录改名后用新目录重建这些链接。
   - **Files and responsibilities**: `apps/desktop/src-tauri/src/services/account.rs`。
@@ -38,9 +38,15 @@
 - `tests/app_slot_shared_auth.rs`：当前帐号识别、删除、重命名。
 - **RED**: 未改动 `mark_active_auth_account`、`delete_account`、`execute_rename_account` 时三类用例失败。
 
+## Evidence（2026-11-10）
+
+- **RED**：新增 4 例中 3 例失败（团队帐号只标记链接目标、删除清除槽位、重命名重建链接）；边界用例"删除其他帐号不影响槽位"在实现前已通过。
+- **GREEN**：`app_slot_shared_auth` 15 passed；`integration_pat_accounts` 15 passed；`--lib account` 21 passed；clippy 对改动文件无告警。
+- **Handoff**：`isActiveAuth` 现以槽位链接为准，APP-001-03 的"当前帐号"按钮状态可直接依赖它。
+
 ## Done
 
-- [ ] T01–T02 完成，Gate 通过，证据写入 execution-map。
+- [x] T01–T02 完成，Gate 通过，证据写入 execution-map。
 
 ## STOP conditions
 

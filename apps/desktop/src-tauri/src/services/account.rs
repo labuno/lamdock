@@ -265,6 +265,15 @@ pub fn list_accounts(home_root: &Path) -> Result<Vec<CodexAccount>> {
 
 fn mark_active_auth_account(home_root: &Path, accounts: &mut [CodexAccount]) {
     let active_auth_path = home_root.join(".codex/auth.json");
+    if let Ok(target) = fs::read_link(&active_auth_path) {
+        if let Some(account) = accounts
+            .iter_mut()
+            .find(|account| account.id != "main" && account.codex_home.join("auth.json") == target)
+        {
+            account.is_active_auth = true;
+        }
+        return;
+    }
     let matches = if let Some(active_suffix) = auth_account_id_suffix(&active_auth_path) {
         accounts
             .iter()
@@ -572,6 +581,7 @@ pub fn execute_rename_account(
         .wrapper_path
         .clone()
         .unwrap_or_else(|| wrapper_path(home_root, &from.id));
+    let slot_links = app_slot_links_into(home_root, &from.codex_home);
 
     fs::rename(&from.codex_home, &target_home).map_err(|err| {
         AppError::new(
@@ -584,6 +594,9 @@ pub fn execute_rename_account(
         )
     })?;
     set_dir_private(&target_home)?;
+    for (link, relative) in slot_links {
+        link_app_slot_file(&target_home.join(relative), &link)?;
+    }
     fs::create_dir_all(
         target_wrapper
             .parent()
@@ -638,6 +651,9 @@ pub fn delete_account(home_root: &Path, req: &DeleteAccountRequest) -> Result<De
         .or_else(|| Some(wrapper_path(home_root, &profile_id)));
 
     terminate_profile_processes(&removed_home_path, removed_wrapper_path.as_deref())?;
+    for (link, _) in app_slot_links_into(home_root, &removed_home_path) {
+        remove_app_slot_file(&link)?;
+    }
     remove_profile_home(&removed_home_path)?;
 
     if let Some(wrapper) = &removed_wrapper_path {
@@ -2221,6 +2237,20 @@ fn link_app_slot_file(source: &Path, target: &Path) -> Result<()> {
             format!("Failed to link {}: {e}", target.display()),
         )
     })
+}
+
+/// Slot files linked into `old_home`, paired with their path relative to it.
+fn app_slot_links_into(home_root: &Path, old_home: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let slot = app_slot_dir(home_root);
+    APP_SLOT_AUTH_FILES
+        .iter()
+        .filter_map(|name| {
+            let link = slot.join(name);
+            let target = fs::read_link(&link).ok()?;
+            let relative = target.strip_prefix(old_home).ok()?.to_path_buf();
+            Some((link, relative))
+        })
+        .collect()
 }
 
 fn remove_app_slot_file(target: &Path) -> Result<()> {

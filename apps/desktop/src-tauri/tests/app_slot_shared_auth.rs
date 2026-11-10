@@ -1,4 +1,7 @@
-use localagentmanager_core::{list_accounts, switch_to_pat_account};
+use localagentmanager_core::{
+    delete_account, execute_rename_account, list_accounts, switch_to_pat_account,
+    DeleteAccountRequest, RenameAccountRequest,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -62,6 +65,10 @@ fn write_slot_file(home: &Path, auth: &str) {
 
 fn slot_link_target(home: &Path) -> Option<PathBuf> {
     fs::read_link(slot_auth(home)).ok()
+}
+
+fn slot_exists(home: &Path) -> bool {
+    fs::symlink_metadata(slot_auth(home)).is_ok()
 }
 
 #[test]
@@ -354,4 +361,107 @@ fn api_key_accounts_cannot_take_the_app_slot() {
     assert_eq!(error.code, "APP_SLOT_API_KEY_UNSUPPORTED");
     assert_eq!(fs::read_to_string(slot_auth(home)).unwrap(), current);
     assert!(slot_link_target(home).is_none());
+}
+
+#[test]
+fn active_auth_follows_the_slot_link_even_when_workspace_is_shared() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path();
+    write_account(
+        home,
+        "one",
+        &chatgpt_auth("acct-team", "user-1", "rt-1", "2026-11-01T00:00:00Z"),
+    );
+    write_account(
+        home,
+        "two",
+        &chatgpt_auth("acct-team", "user-2", "rt-2", "2026-11-01T00:00:00Z"),
+    );
+
+    switch_to_pat_account(home, "two").unwrap();
+
+    let active = list_accounts(home)
+        .unwrap()
+        .into_iter()
+        .filter(|account| account.is_active_auth)
+        .map(|account| account.id)
+        .collect::<Vec<_>>();
+    assert_eq!(active, vec!["two".to_string()]);
+}
+
+#[test]
+fn deleting_the_linked_account_clears_the_app_slot() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path();
+    write_account(
+        home,
+        "a",
+        &chatgpt_auth("acct-a", "user-a", "rt-a1", "2026-11-01T00:00:00Z"),
+    );
+    switch_to_pat_account(home, "a").unwrap();
+
+    delete_account(
+        home,
+        &DeleteAccountRequest {
+            profile_id: "a".to_string(),
+        },
+    )
+    .unwrap();
+
+    assert!(!slot_exists(home));
+}
+
+#[test]
+fn deleting_another_account_keeps_the_app_slot() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path();
+    write_account(
+        home,
+        "a",
+        &chatgpt_auth("acct-a", "user-a", "rt-a1", "2026-11-01T00:00:00Z"),
+    );
+    write_account(
+        home,
+        "b",
+        &chatgpt_auth("acct-b", "user-b", "rt-b1", "2026-11-01T00:00:00Z"),
+    );
+    switch_to_pat_account(home, "a").unwrap();
+
+    delete_account(
+        home,
+        &DeleteAccountRequest {
+            profile_id: "b".to_string(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        slot_link_target(home),
+        Some(account_home(home, "a").join("auth.json"))
+    );
+}
+
+#[test]
+fn renaming_the_linked_account_relinks_the_app_slot() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path();
+    let auth = chatgpt_auth("acct-a", "user-a", "rt-a1", "2026-11-01T00:00:00Z");
+    write_account(home, "a", &auth);
+    switch_to_pat_account(home, "a").unwrap();
+
+    execute_rename_account(
+        home,
+        &RenameAccountRequest {
+            from_profile_id: "a".to_string(),
+            to_name: "renamed".to_string(),
+            overwrite_wrapper: true,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        slot_link_target(home),
+        Some(account_home(home, "renamed").join("auth.json"))
+    );
+    assert_eq!(fs::read_to_string(slot_auth(home)).unwrap(), auth);
 }
