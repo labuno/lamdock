@@ -7,6 +7,8 @@
   `routes/views.tsx`（按页面）、`App.tsx`（按交互）和 `styles.css`（按组件）。每次只迁移一个职责，
   不改变公开导出、序列化和业务行为，每步运行对应测试和 `make check`。
 - [当前手工验收](manual-acceptance.md)：保留真实帐号、ChatGPT 重启、Antigravity 和代理出口等未关闭场景。
+- [PAT 模式 Codex App 帐号接力](APP-001-app-slot-shared-auth-plan.md)：代码与 `make check` 已完成，
+  待真实 Codex App 验收（见手工验收中的 APP-001 场景）；[执行任务](todos/APP-001/README.md)。
 - [Claude／多 Agent 适配](CLD-001-claude-agent-support-plan.md) 与 [执行任务](todos/CLD-001/README.md)。
 - 其他未关闭专题任务见 [文档入口](README.md)。
 

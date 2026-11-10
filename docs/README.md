@@ -17,6 +17,7 @@
 - [安全与数据保护](03-security-and-data-safety.md)
 - [额度重置与 Reset Credit](TAURI2_RUST_CODEX_RESET_EXPIRY_AND_QUOTA_RESET.md)
 - [请求监控的数据口径与采集设计](request-monitoring-design.md)
+- [PAT 模式下 Codex App 帐号接力（共享凭据）](APP-001-app-slot-shared-auth-plan.md) 与 [执行任务](todos/APP-001/README.md)
 
 历史设计背景见 [FINAL-DESIGN](FINAL-DESIGN.md) 和 [DESIGN_GOAL](DESIGN_GOAL.md)；
 当前功能约定见上方专题文档，验收见 [当前手工验收](manual-acceptance.md)。

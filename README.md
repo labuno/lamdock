@@ -82,13 +82,21 @@ Different developers have different multi-account workflows. LAM natively suppor
 
 | Dimension | Profile Mode (Recommended) | PAT Mode (Single-Directory Mode) |
 | :--- | :--- | :--- |
-| **Under the Hood** | Each account gets its own `~/.codex-<name>` directory and wrapper script | All accounts share the default `~/.codex` directory, hot-swapping `auth.json` |
-| **State Isolation** | **Complete Physical Isolation**: Configs, session history, caches, and auth are 100% independent | **Single-Point Overwrite**: The active account's credentials overwrite the default directory |
-| **Concurrency** | **Supported**: Run different accounts simultaneously in separate terminal windows | **Not Supported**: Only one account can be active at any given moment |
-| **Launch Method** | Launch via LAM or using the generated account wrapper command | Run standard system `codex` command directly in your shell |
-| **Best For** | Power users running parallel tasks or needing strict work/personal separation | Users who prefer a single default directory and only swap accounts when quota runs out |
+| **Under the Hood** | Each account gets its own `~/.codex-<name>` directory and wrapper script | Accounts keep their own `~/.codex-<name>` directories; the default `~/.codex/auth.json` becomes a link to the chosen account's credentials |
+| **State Isolation** | **Complete Physical Isolation**: Configs, session history, caches, and auth are 100% independent | **Shared Credentials**: The Codex App and the account read the same file, so token refreshes reach both |
+| **Concurrency** | **Supported**: Run different accounts simultaneously in separate terminal windows | **One App Target**: The Codex App uses one account or one External API connection at a time; every account stays usable from its wrapper |
+| **Launch Method** | Launch via LAM or using the generated account wrapper command | Use the Codex App or the standard system `codex` command |
+| **Best For** | Power users running parallel tasks or needing strict work/personal separation | Users who mainly use the Codex App and swap accounts when quota runs out |
 
-Switch between Profile and PAT display modes at any time in LAM Settings.
+Switch between Profile and PAT display modes at any time in LAM Settings. Accounts added in either mode work in both, and nothing needs to be re-added after switching modes.
+
+How PAT mode switches the Codex App:
+
+* **Current target**: The overview and the menu bar popover show what the Codex App runs on: a ChatGPT account, an External API connection, or a provider set by hand in `~/.codex/config.toml`.
+* **ChatGPT accounts**: **Switch** links the App to that account and restarts ChatGPT. On the first switch, credentials that were only in `~/.codex` are imported as an `app-…` account instead of being overwritten.
+* **External API accounts**: **Use in App** attaches the connection to the Codex App after a confirmation. Switching back to a ChatGPT account asks first and detaches the connection. Chats started on another account or connection are read-only in the App until you switch back.
+* **Unavailable switches**: The button is disabled and its tooltip explains why: the `main` profile, accounts that are not signed in, API-key Codex accounts (use them from Profile wrappers), or a provider set by hand in `config.toml`.
+* Don't run `codex login` against the default `~/.codex` while PAT mode is in use. Sign in through LAM so each account keeps its own directory.
 
 ![LAM Settings for Profile or PAT visibility and handoff terminal selection](docs/assets/lam-settings.png)
 

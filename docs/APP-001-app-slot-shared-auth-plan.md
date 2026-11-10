@@ -1,6 +1,6 @@
 # APP-001 Codex App 帐号接力（共享凭据槽位）计划
 
-- **状态**: 待评审
+- **状态**: 已实施，待真实 Codex App 验收
 - **分支**: `agent/20261110-app-slot-shared-auth`
 - **任务图**: [`todos/APP-001/README.md`](todos/APP-001/README.md)
 

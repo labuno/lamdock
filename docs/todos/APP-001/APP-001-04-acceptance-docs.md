@@ -45,9 +45,16 @@
 - 手工验收场景见 T02。
 - **RED**: 不适用新的自动测试；以回归失败和验收失败为准。
 
+## Evidence（2026-11-10）
+
+- **T01**：首次 `make check` 在 `cargo fmt --check` 失败（`services/mod.rs` 中 `app_target` 模块声明顺序，属节点 05 遗留），已修正。第二次失败在 `quota::tests::proxy_curl_sends_requests_via_the_configured_proxy`：基线遗留的偶发测试，与本改动无关。单独运行 6/6 通过，第三次 `make check` 退出码 0。
+- **T02**：待用户在真实 Codex App 上验收，场景已写入 `docs/manual-acceptance.md` 的 APP-001 行。
+- **T03**：README 中英文 PAT 一节、手工验收清单、`docs/README.md` 与 `docs/TODO.md` 入口已更新；计划状态改为"已实施，待真实 Codex App 验收"。
+
 ## Done
 
-- [ ] T01–T03 完成，`make check` 证据写入 execution-map。
+- [x] T01、T03 完成，`make check` 证据写入 execution-map。
+- [ ] T02 真实 Codex App 验收。
 - [ ] 所有节点状态为验证成功。
 
 ## STOP conditions

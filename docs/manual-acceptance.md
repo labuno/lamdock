@@ -28,6 +28,11 @@ ChatGPT 重启时使用可处置的测试帐号/会话，并先保存正在进�
 | 官方额度与重置 | 主窗口和托盘显示来源、刷新状态、额度与重置时间；不可用显示未知；Reset Credit 实际行为符合源数据 | 待验证 |
 | API 帐号删除后启动恢复 | 中断删除后重启不崩溃，运行时重建目录保留且不误绑定；完整帐号中断恢复仍符合已有合同 | 待验证 |
 | PAT 切换后重启 ChatGPT | 主窗口和托盘切换路径均验证；ChatGPT 正常退出并重新打开，主 PID 改变，窗口位置保留，目标 PAT 仍有效；不终止其他应用 | 待验证 |
+| APP-001 首次切换导入 | `~/.codex/auth.json` 为普通文件时首次切换，原凭据被导入为 `app-…` 帐号；`ls -l ~/.codex/auth.json` 显示指向目标帐号的链接 | 待验证 |
+| APP-001 切换后继续对话与 token 刷新 | 切换后 App 可继续对话；Codex 刷新 token 后槽位仍是链接，帐号文件 `last_refresh` 更新；同一帐号在 Profile 模式 CLI 中同时可用。槽位变回普通文件即停止验收 | 待验证 |
+| APP-001 退出登录、重命名与删除 | App 内退出登录只删除链接；重命名被链接帐号后链接指向新目录；删除被链接帐号后槽位被移除，删除其他帐号不影响槽位 | 待验证 |
+| APP-001 External API 接管 App | 概览和托盘显示 App 当前目标；External API 帐号 Use in App 确认后 App 可对话；切回 ChatGPT 帐号时先确认，之后 App 可对话且原 OpenAI 对话恢复可写；External API 帐号在 Profile 模式 CLI 中全程可用 | 待验证 |
+| APP-001 手工 provider | `config.toml` 手工设置 `model_provider` 时 Switch 置灰并说明原因，LamDock 不改写该文件 | 待验证 |
 | Antigravity 设置与布局 | 在默认 1280×820、最小 1100×700 和明暗主题下，Settings 端口输入/引导命令不裁切；保存、离开返回和清空符合配置 | 待验证 |
 | Antigravity 实时刷新 | 启动真实 Antigravity，按 Settings 引导取得监听端口；主窗口和托盘均显示实时数据；有效但错误的端口明确离线、不自动改配置；恢复正确端口后刷新恢复 | 待验证 |
 | Antigravity 未配置与后台 | 清空配置后不查询 quota；关闭或隐藏主窗口后，已配置的托盘仍可刷新；不产生重复请求或过期结果覆盖 | 待验证 |
