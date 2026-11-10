@@ -104,7 +104,7 @@
       "maturity": "DECOMPOSED",
       "elaboration_blockers": [],
       "readiness": "READY",
-      "status": "待执行",
+      "status": "验证成功",
       "depends_on": ["APP-001-01"],
       "blockers": [],
       "consumes": ["artifact:app-slot-link"],
@@ -118,7 +118,14 @@
       "integration_gates": [
         "npm test -- src/components/tray-quota-panel.test.tsx src/App.handoff.test.tsx"
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "command": "npm test -- src/components/tray-quota-panel.test.tsx src/App.handoff.test.tsx",
+          "result": "PASS",
+          "scope": "local",
+          "verified_at": "2026-11-10T14:40:00+08:00"
+        }
+      ]
     },
     {
       "id": "APP-001-05",
@@ -167,7 +174,7 @@
       "todo": "APP-001-06-app-target-ui.md",
       "maturity": "DECOMPOSED",
       "elaboration_blockers": [],
-      "readiness": "BLOCKED",
+      "readiness": "READY",
       "status": "待执行",
       "depends_on": ["APP-001-03", "APP-001-05"],
       "blockers": [],

@@ -585,10 +585,10 @@ export function App() {
         refreshAccountQuota('main');
         useAppStore
           .getState()
-          .setStatus(`Switched auth.json to '${account.id}'. Restarting ChatGPT…`);
+          .setStatus(`Codex App now uses ${account.displayName}. Restarting ChatGPT…`);
         await api.restartChatgpt();
       } catch (err) {
-        useAppStore.getState().setStatus('Failed to switch auth.json');
+        useAppStore.getState().setStatus('Failed to switch the Codex App account');
         useAppStore.getState().setError(err instanceof Error ? err.message : String(err));
       }
     } else {

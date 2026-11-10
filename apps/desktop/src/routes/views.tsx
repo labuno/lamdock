@@ -6,7 +6,7 @@ import {
   resetCreditDisplay,
   quotaDisplayWindows,
 } from '../lib/quota';
-import { authModeLabel } from '../lib/auth';
+import { authModeLabel, codexAppSwitchBlocker } from '../lib/auth';
 import {
   groupAntigravityModels,
   quotaBucketUsedPercent,
@@ -666,6 +666,10 @@ export function Accounts({
             authMode === 'pat'
               ? account.isActiveAuth === true
               : currentSession?.accountId === account.id;
+          const switchBlocker = codexAppSwitchBlocker(account, {
+            isActive: isActiveAccount,
+            isApiAccount,
+          });
           const primaryBtnClass = compactButtons
             ? 'accountActionBtn accountActionBtn--primary'
             : 'accountActionBtn';
@@ -1188,15 +1192,9 @@ export function Accounts({
                         size="sm"
                         variant="primary"
                         className={primaryBtnClass}
-                        disabled={account.id === 'main' || isActiveAccount}
+                        disabled={switchBlocker !== null}
                         aria-label="Switch to this account"
-                        title={
-                          account.id === 'main'
-                            ? 'Main profile is the active auth slot'
-                            : isActiveAccount
-                              ? 'This account is already active'
-                              : 'Switch to this account'
-                        }
+                        title={switchBlocker ?? 'Switch to this account'}
                         onClick={(e) => {
                           e.stopPropagation();
                           switchAccount(account);

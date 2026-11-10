@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TrayQuotaPanel } from './tray-quota-panel';
 import * as api from '../lib/api';
@@ -289,6 +289,54 @@ describe('TrayQuotaPanel', () => {
       vi.mocked(api.restartChatgpt).mock.invocationCallOrder[0],
     );
     expect(api.relayResumeSession).not.toHaveBeenCalled();
+  });
+
+  it('offers PAT switching only to accounts that can take over the Codex App', async () => {
+    vi.mocked(api.getAuthMode).mockResolvedValue('pat');
+    vi.mocked(api.listAccounts).mockResolvedValue([
+      { ...account, id: 'main', displayName: 'main' },
+      { ...account, id: 'logged-out', displayName: 'logged-out', hasAuth: false },
+      { ...account, id: 'key', displayName: 'key', authMode: 'api_key' },
+      { ...account, id: 'pro', displayName: 'pro' },
+      { ...account, id: 'work', displayName: 'work', authMode: 'oauth' },
+    ]);
+    vi.mocked(api.listProfileProviderBindingsV2).mockResolvedValue([
+      {
+        profileId: 'pro',
+        providerId: 'account-pro',
+        selectedModel: 'gpt-5',
+        routeKind: 'direct',
+        revision: 1,
+        providerRevision: 1,
+      },
+    ]);
+    vi.mocked(api.listCachedAccounts).mockResolvedValue([]);
+    vi.mocked(api.listCachedQuotas).mockResolvedValue([]);
+
+    render(<TrayQuotaPanel />);
+    await waitFor(() => expect(screen.getByText('work')).toBeTruthy());
+    const switchIn = (name: string) =>
+      within(screen.getByRole('article', { name: `${name} account` })).getByRole('button', {
+        name: 'Switch',
+      });
+
+    await waitFor(() => expect(switchIn('pro')).toHaveProperty('disabled', true));
+    const blocked: Array<[string, RegExp]> = [
+      ['main', /main profile/i],
+      ['logged-out', /log in/i],
+      ['key', /api key/i],
+      ['pro', /external api/i],
+    ];
+    for (const [name, reason] of blocked) {
+      expect(switchIn(name)).toHaveProperty('disabled', true);
+      expect(switchIn(name).getAttribute('title')).toMatch(reason);
+    }
+    expect(switchIn('work')).toHaveProperty('disabled', false);
+
+    fireEvent.click(switchIn('work'));
+    await waitFor(() =>
+      expect(screen.getByText('Codex App now uses work. Restarting ChatGPT…')).toBeTruthy(),
+    );
   });
 
   it('renders API-key-like Codex auth as generic Auth in tray rows', async () => {

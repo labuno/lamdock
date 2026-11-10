@@ -33,7 +33,7 @@ import {
   resetCreditDisplay,
 } from '../lib/quota';
 import { formatOfficialCountdown, formatResetCountdown } from '../lib/reset';
-import { authModeLabel } from '../lib/auth';
+import { authModeLabel, codexAppSwitchBlocker } from '../lib/auth';
 import {
   formatAntigravityBucketLabel,
   groupAntigravityModels,
@@ -825,6 +825,10 @@ function TrayAccountList({
               const isRefreshingQuota = refreshingQuotaIds.includes(account.id);
               const isApiAccount = apiAccountIds.includes(account.id);
               const authTag = authModeLabel(account.authMode);
+              const switchBlocker = codexAppSwitchBlocker(account, {
+                isActive: isActiveAccount,
+                isApiAccount,
+              });
 
               const accountTheme = getAccountTheme(account.id, index, isDark);
               const quotaWindows = quotaDisplayWindows(quota);
@@ -897,9 +901,10 @@ function TrayAccountList({
                         style={btnStyle}
                         disabled={
                           authMode === 'pat'
-                            ? isActiveAccount || relayingAccountId === account.id
+                            ? switchBlocker !== null || relayingAccountId === account.id
                             : !activeSession || relayingAccountId === account.id
                         }
+                        title={authMode === 'pat' ? (switchBlocker ?? undefined) : undefined}
                         onClick={() =>
                           authMode === 'pat' ? onSwitchTo(account) : onRelayTo(account)
                         }
@@ -1228,7 +1233,7 @@ export function TrayQuotaPanel() {
       await switchToPatAccount(account.id);
       await load(false);
       await refreshAccountQuota(accounts.find((a) => a.id === 'main') ?? account);
-      setStatus(`Switched to ${account.displayName}. Restarting ChatGPT...`);
+      setStatus(`Codex App now uses ${account.displayName}. Restarting ChatGPT…`);
       await restartChatgpt();
     } catch (err) {
       setStatus(formatError(err));

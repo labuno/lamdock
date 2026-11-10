@@ -857,6 +857,92 @@ describe('App handoff modal', () => {
     expect(api.openTerminalForLogin).not.toHaveBeenCalled();
   });
 
+  it('offers PAT switching only to accounts that can take over the Codex App', async () => {
+    vi.mocked(api.getAuthMode).mockResolvedValue('pat');
+    sessionItems.mockResolvedValue([]);
+    vi.mocked(api.listAccounts).mockResolvedValue(
+      accounts.map((account) =>
+        account.id === 'codex-luna002'
+          ? { ...account, hasAuth: false }
+          : account.id === 'codex-c'
+            ? { ...account, authMode: 'api_key' }
+            : account,
+      ),
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByLabelText(/pat mode/i)).toHaveProperty('checked', true));
+    const switchIn = async (name: string) => {
+      const card = (await screen.findByText(name)).closest('article');
+      return within(card!).getByRole('button', { name: /switch to this account/i });
+    };
+
+    const loggedOut = await switchIn('codex-luna002');
+    expect(loggedOut).toHaveProperty('disabled', true);
+    expect(loggedOut.getAttribute('title')).toMatch(/log in/i);
+    const apiKey = await switchIn('codex-c');
+    expect(apiKey).toHaveProperty('disabled', true);
+    expect(apiKey.getAttribute('title')).toMatch(/api key/i);
+    expect(await switchIn('main')).toHaveProperty('disabled', true);
+  });
+
+  it('reports that the Codex App now uses the switched account', async () => {
+    vi.mocked(api.getAuthMode).mockResolvedValue('pat');
+    sessionItems.mockResolvedValue([]);
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByLabelText(/pat mode/i)).toHaveProperty('checked', true));
+    const accountCard = (await screen.findByText('codex-c')).closest('article');
+    fireEvent.click(within(accountCard!).getByRole('button', { name: /switch to this account/i }));
+
+    await waitFor(() =>
+      expect(useAppStore.getState().status).toBe('Codex App now uses codex-c. Restarting ChatGPT…'),
+    );
+  });
+
+  it('offers PAT switching only to accounts that can take over the Codex App', async () => {
+    vi.mocked(api.getAuthMode).mockResolvedValue('pat');
+    sessionItems.mockResolvedValue([]);
+    vi.mocked(api.listAccounts).mockResolvedValue(
+      accounts.map((account) =>
+        account.id === 'codex-luna002'
+          ? { ...account, hasAuth: false }
+          : account.id === 'codex-c'
+            ? { ...account, authMode: 'api_key' }
+            : account,
+      ),
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByLabelText(/pat mode/i)).toHaveProperty('checked', true));
+    const switchIn = async (name: string) => {
+      const card = (await screen.findByText(name)).closest('article');
+      return within(card!).getByRole('button', { name: /switch to this account/i });
+    };
+
+    const loggedOut = await switchIn('codex-luna002');
+    expect(loggedOut).toHaveProperty('disabled', true);
+    expect(loggedOut.getAttribute('title')).toMatch(/log in/i);
+    const apiKey = await switchIn('codex-c');
+    expect(apiKey).toHaveProperty('disabled', true);
+    expect(apiKey.getAttribute('title')).toMatch(/api key/i);
+    expect(await switchIn('main')).toHaveProperty('disabled', true);
+  });
+
+  it('reports that the Codex App now uses the switched account', async () => {
+    vi.mocked(api.getAuthMode).mockResolvedValue('pat');
+    sessionItems.mockResolvedValue([]);
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByLabelText(/pat mode/i)).toHaveProperty('checked', true));
+    const accountCard = (await screen.findByText('codex-c')).closest('article');
+    fireEvent.click(within(accountCard!).getByRole('button', { name: /switch to this account/i }));
+
+    await waitFor(() =>
+      expect(useAppStore.getState().status).toBe('Codex App now uses codex-c. Restarting ChatGPT…'),
+    );
+  });
+
   it('refreshes main quota after PAT switch copies auth into main', async () => {
     const refreshAccountQuota = vi.fn();
     useQuotaStore.setState({ refreshAccountQuota });
