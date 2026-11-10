@@ -906,20 +906,20 @@ mod cwd_normalize_tests {
     #[test]
     fn file_uri_is_converted_to_plain_path() {
         assert_eq!(
-            normalize_cwd("file:///Users/zhanhd/Projects/My%20App"),
-            Some("/Users/zhanhd/Projects/My App".to_string())
+            normalize_cwd("file:///Users/test/Projects/My%20App"),
+            Some("/Users/test/Projects/My App".to_string())
         );
         assert_eq!(
-            normalize_cwd("file://localhost/Users/zhanhd/a"),
-            Some("/Users/zhanhd/a".to_string())
+            normalize_cwd("file://localhost/Users/test/a"),
+            Some("/Users/test/a".to_string())
         );
     }
 
     #[test]
     fn plain_paths_pass_through() {
         assert_eq!(
-            normalize_cwd("/Users/zhanhd/code"),
-            Some("/Users/zhanhd/code".to_string())
+            normalize_cwd("/Users/test/code"),
+            Some("/Users/test/code".to_string())
         );
         assert_eq!(normalize_cwd(""), None);
         assert_eq!(normalize_cwd("   "), None);

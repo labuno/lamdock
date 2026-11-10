@@ -23,7 +23,7 @@
 
 ## 后续工作
 
-- [发布检查与精简计划](release-readiness-and-cleanup-plan.md)（2026-11-02 审查基线）；[执行约束](release-execution-scope.md)、[执行进度](todos/REL-001/execution-map.json)、[本轮验证与工件](release-cleanup-execution-report.md)
+- [大模块拆分](TODO.md)
 - [Claude／多 Agent 适配计划](CLD-001-claude-agent-support-plan.md) 与 [执行任务](todos/CLD-001/README.md)
 - [Gateway 后续改进计划](todo-provider-gateway-review-remediation.md)
 - [Gateway 工具桥接的待验证边界](todo-fix-gateway-chat-tool-namespace-bridge.md)

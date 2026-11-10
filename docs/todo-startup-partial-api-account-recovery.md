@@ -35,7 +35,7 @@ Require both the managed-account marker and `config.toml` before compensating a 
 - RED: Focused Rust test reproduced the packaged crash precursor: recovery returned `IO_ERROR: No such file or directory` for a runtime-recreated profile lacking its managed files.
 - GREEN: 2026-11-02 `cargo test --offline -j 2 --test provider_phase4_api_account` 27 项通过；完整 `make check` 通过。部分删除、完整帐号中断恢复和第二次恢复零工作均通过。
 - Changed files: 本轮未修改恢复实现；已核对 `provider_api_v2.rs` 与现有 `provider_phase4_api_account.rs` 测试。
-- Remaining limitation: 安装包真实 GUI 启动验收未完成，详见 [发布清理执行记录](release-cleanup-execution-report.md)。
+- Remaining limitation: 安装包真实 GUI 启动验收未完成，见 [当前手工验收](manual-acceptance.md)。
 
 ## Done
 

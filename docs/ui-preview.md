@@ -31,8 +31,6 @@
 - 完整 Vitest：27 个文件、278 项通过；ESLint、TypeScript/Vite 构建、未使用项检查、49 项 Node 脚本及 UI smoke 均通过。
 - 隔离 Chromium 在 1280×820、1100×700 检查无横向溢出、帐号菜单及 Monitor 导航。
 - 托盘在实际 328px 宽度检查明暗、滚动、集成切换和 Open；额度颜色、名称输入值/样式/提交参数已检查。
-- 原始日志、浏览器预览夹具与前端来源快照保存在仓库外：
-  `/Users/zhanhd/Documents/products/github/lamdock-ui-evidence-20261102-153817`。
 
 ## 后续修复与紧凑布局（2026-11-02）
 

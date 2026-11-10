@@ -6,8 +6,7 @@
 
 ## 环境与记录
 
-先运行 `make check`，使用本轮构建的 `LamDock.app`；版本与哈希见
-[发布执行记录](release-cleanup-execution-report.md)。
+先运行 `make check`，使用本轮构建的 `LamDock.app`，并记录其版本与 DMG 的 SHA-256。
 
 现有旧 LAM 与本项目保留相同应用标识和默认目录。先以独立 `LAM_HOME` 验证启动；
 真实帐号验收另行安排，避免两个实例同时读写同一数据。测试会话删除、帐号删除和

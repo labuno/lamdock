@@ -25,7 +25,7 @@ LAM 在 `~/.local/bin/codex` 安装独立入口，不覆盖 Bun/npm 的原始程
 ```sh
 rehash
 command -v codex
-# 应显示 /Users/zhanhd/.local/bin/codex
+# 应显示 $HOME/.local/bin/codex
 codex
 ```
 
